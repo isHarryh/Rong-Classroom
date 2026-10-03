@@ -1,10 +1,15 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Button, ConfigProvider, Dropdown, Popover, Slider, Spin } from "antd";
+import { Button, ConfigProvider, Dropdown, Popover, Slider, Spin, Tooltip } from "antd";
 import { Delete, LockKeyhole, LogOut, Minus, MoreHorizontal, Plus, UnlockKeyhole, UsersRound, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { api, useMessage, useResource, ApiError } from "@/lib/client";
+import { CreditCelebration, type CreditCelebrationEvent } from "@/components/CreditCelebration";
+import { StudentChip, type ChipEffect } from "@/components/StudentChip";
+
+const CHIP_EFFECT_LIMIT = 30;
+const FEEDBACK_DURATION = 1600;
 
 type Group = { id: string; name: string; status: number };
 type Student = {
@@ -27,7 +32,7 @@ type Bootstrap = {
   reasons: Reason[];
 };
 type CreditValues = { amount: number; reasonId: string };
-type CreditTarget = { key: string; direction: 1 | -1; ids: string[] };
+type CreditTarget = { key: string; direction: 1 | -1; ids: string[]; label?: string };
 type ReasonStage = { id: string; name: string; hasChildren: boolean; children: { value: string; label: string }[] };
 
 function CreditFormPanel({
@@ -45,11 +50,12 @@ function CreditFormPanel({
   stages: ReasonStage[];
   onActivity: () => void;
   onCancel: () => void;
-  onOk: (values: CreditValues) => void;
+  onOk: (values: CreditValues, origin?: { x: number; y: number }) => void;
 }) {
   const { message } = useMessage();
   const [topId, setTopId] = useState<string>();
   const [reasonId, setReasonId] = useState<string>();
+  const [shake, setShake] = useState<{ target: "top" | "child"; key: number }>();
   const stage2Ref = useRef<HTMLDivElement>(null);
   const active = stages.find(stage => stage.id === topId);
   useEffect(() => {
@@ -81,7 +87,10 @@ function CreditFormPanel({
         加减分原因
       </div>
       <div className="reason-picker">
-        <div className="reason-group-options">
+        <div
+          className={`reason-group-options ${shake?.target === "top" ? "shake" : ""}`}
+          key={shake?.target === "top" ? `top-${shake.key}` : "top"}
+        >
           {stages.map(stage => (
             <button
               type="button"
@@ -101,7 +110,10 @@ function CreditFormPanel({
           <div className="reason-stage2" ref={stage2Ref}>
             <div className="reason-group-name">{active.name} · 二级原因</div>
             {active.children.length ? (
-              <div className="reason-group-options">
+              <div
+                className={`reason-group-options ${shake?.target === "child" ? "shake" : ""}`}
+                key={shake?.target === "child" ? `child-${shake.key}` : "child"}
+              >
                 {active.children.map(option => (
                   <button
                     type="button"
@@ -133,7 +145,22 @@ function CreditFormPanel({
           danger={direction < 0}
           icon={direction > 0 ? <Plus size={15} /> : <Minus size={15} />}
           style={{ flex: 1 }}
-          onClick={() => (reasonId ? onOk({ amount, reasonId }) : message.warning("请选择原因"))}
+          onClick={event => {
+            if (!reasonId) {
+              const target = active?.hasChildren ? "child" : "top";
+              setShake(current => ({ target, key: (current?.key ?? 0) + 1 }));
+              message.warning("请选择原因");
+              return;
+            }
+            const rect = event.currentTarget.getBoundingClientRect();
+            onOk(
+              { amount, reasonId },
+              {
+                x: (rect.left + rect.width / 2) / window.innerWidth,
+                y: (rect.top + rect.height / 2) / window.innerHeight,
+              },
+            );
+          }}
         >
           {direction > 0 ? "确认加分" : "确认扣分"}
         </Button>
@@ -306,7 +333,7 @@ function CreditPopover({
   onActivity: () => void;
   target: CreditTarget | undefined;
   onClose: () => void;
-  onSubmit: (values: CreditValues) => void;
+  onSubmit: (values: CreditValues, origin?: { x: number; y: number }) => void;
   children: React.ReactNode;
 }) {
   const open = target?.key === creditKey;
@@ -367,6 +394,10 @@ export default function ClientPage() {
     setCreditAmounts(current => ({ ...current, [key]: value }));
   const [summaryEl, setSummaryEl] = useState<HTMLDivElement | null>(null);
   const [summaryWidth, setSummaryWidth] = useState(0);
+  const [celebration, setCelebration] = useState<CreditCelebrationEvent>();
+  const [chipEffects, setChipEffects] = useState<Record<string, ChipEffect>>({});
+  const celebrationSeq = useRef(0);
+  const feedbackTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const lockTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const [bootstrap, reload] = useResource(
     () => api<Bootstrap>("/api/client/bootstrap"),
@@ -417,6 +448,7 @@ export default function ClientPage() {
     resetLockTimer();
     return () => clearTimeout(lockTimer.current);
   }, [resetLockTimer]);
+  useEffect(() => () => clearTimeout(feedbackTimer.current), []);
   useEffect(() => {
     if (!summaryEl) return;
     const update = () => setSummaryWidth(summaryEl.clientWidth);
@@ -437,12 +469,12 @@ export default function ClientPage() {
     resetLockTimer();
     setSelected(current => (current.includes(id) ? current.filter(item => item !== id) : [id, ...current]));
   }
-  function openCredit(key: string, direction: 1 | -1, ids: string[]) {
+  function openCredit(key: string, direction: 1 | -1, ids: string[], label?: string) {
     if (!ids.length) {
       message.info("尚未选择学生");
       return;
     }
-    attemptWrite(() => setCreditTarget({ key, direction, ids }), key);
+    attemptWrite(() => setCreditTarget({ key, direction, ids, label }), key);
   }
   const unlock = useCallback(
     async (secret: string): Promise<string | undefined> => {
@@ -463,15 +495,21 @@ export default function ClientPage() {
     message.success("已解锁，可进行积分操作");
   }, [message]);
   const submitting = useRef(false);
-  async function submitCredit(ids: string[], direction: 1 | -1, values: CreditValues) {
+  async function submitCredit(
+    ids: string[],
+    direction: 1 | -1,
+    values: CreditValues,
+    origin?: { x: number; y: number },
+  ) {
     if (submitting.current) return;
     submitting.current = true;
+    const amount = Number(values.amount);
     try {
       const result = await api<{ count: number }>("/api/credits", {
         method: "POST",
         body: JSON.stringify({
           studentIds: ids,
-          delta: direction * Number(values.amount),
+          delta: direction * amount,
           reasonId: values.reasonId,
         }),
       });
@@ -480,12 +518,25 @@ export default function ClientPage() {
         reload();
         return;
       }
-      message.success(`已为 ${ids.length} 名学生${direction > 0 ? "加分" : "扣分"}`);
+      const key = ++celebrationSeq.current;
+      setCelebration({ key, direction, amount, count: ids.length, label: creditTarget?.label, origin });
+      if (ids.length <= CHIP_EFFECT_LIMIT) {
+        const effects: Record<string, ChipEffect> = {};
+        for (const id of ids) effects[id] = { key, direction, amount };
+        setChipEffects(effects);
+      } else {
+        setChipEffects({});
+      }
+      clearTimeout(feedbackTimer.current);
+      feedbackTimer.current = setTimeout(() => {
+        setCelebration(undefined);
+        setChipEffects({});
+      }, FEEDBACK_DURATION);
       setCreditTarget(undefined);
       setSelected([]);
       setPending(current => {
         const next = { ...(current.source === bootstrap ? current.deltas : {}) };
-        for (const id of ids) next[id] = (next[id] || 0) + direction * Number(values.amount);
+        for (const id of ids) next[id] = (next[id] || 0) + direction * amount;
         return { source: bootstrap, deltas: next };
       });
       resetLockTimer();
@@ -558,7 +609,7 @@ export default function ClientPage() {
               size="small"
               type="text"
               icon={<Plus size={14} />}
-              onClick={() => openCredit(`group-${group.id}-1`, 1, groupIds)}
+              onClick={() => openCredit(`group-${group.id}-1`, 1, groupIds, group.name)}
             >
               整组加分
             </Button>
@@ -569,7 +620,7 @@ export default function ClientPage() {
               type="text"
               danger
               icon={<Minus size={14} />}
-              onClick={() => openCredit(`group-${group.id}--1`, -1, groupIds)}
+              onClick={() => openCredit(`group-${group.id}--1`, -1, groupIds, group.name)}
             >
               整组扣分
             </Button>
@@ -607,7 +658,7 @@ export default function ClientPage() {
                       onActivity={resetLockTimer}
                       target={creditTarget}
                       onClose={() => setCreditTarget(undefined)}
-                      onSubmit={values => submitCredit(groupIds, 1, values)}
+                      onSubmit={(values, origin) => submitCredit(groupIds, 1, values, origin)}
                     >
                       {plusButton}
                     </CreditPopover>
@@ -634,7 +685,7 @@ export default function ClientPage() {
                       onActivity={resetLockTimer}
                       target={creditTarget}
                       onClose={() => setCreditTarget(undefined)}
-                      onSubmit={values => submitCredit(groupIds, -1, values)}
+                      onSubmit={(values, origin) => submitCredit(groupIds, -1, values, origin)}
                     >
                       {minusButton}
                     </CreditPopover>
@@ -653,15 +704,14 @@ export default function ClientPage() {
               </div>
               <div className="student-chips">
                 {students.map(student => (
-                  <button
-                    type="button"
-                    className={`student-chip ${selected.includes(student.id) ? "selected" : ""}`}
+                  <StudentChip
                     key={student.id}
+                    name={student.name}
+                    balance={student.balance}
+                    selected={selected.includes(student.id)}
+                    effect={chipEffects[student.id]}
                     onClick={() => toggleStudent(student.id)}
-                  >
-                    <span>{student.name}</span>
-                    <span className="coin">{student.balance} 榕币</span>
-                  </button>
+                  />
                 ))}
               </div>
               {!students.length && (
@@ -681,15 +731,14 @@ export default function ClientPage() {
             </div>
             <div className="student-chips">
               {ungroupedStudents.map(student => (
-                <button
-                  type="button"
-                  className={`student-chip ${selected.includes(student.id) ? "selected" : ""}`}
+                <StudentChip
                   key={student.id}
+                  name={student.name}
+                  balance={student.balance}
+                  selected={selected.includes(student.id)}
+                  effect={chipEffects[student.id]}
                   onClick={() => toggleStudent(student.id)}
-                >
-                  <span>{student.name}</span>
-                  <span className="coin">{student.balance} 榕币</span>
-                </button>
+                />
               ))}
             </div>
           </section>
@@ -723,17 +772,21 @@ export default function ClientPage() {
               onActivity={resetLockTimer}
               target={creditTarget}
               onClose={() => setCreditTarget(undefined)}
-              onSubmit={values => submitCredit(selected, 1, values)}
+              onSubmit={(values, origin) => submitCredit(selected, 1, values, origin)}
             >
-              <Button
-                type="primary"
-                className="credit-pair-btn"
-                disabled={!unlocked || !selected.length}
-                icon={<Plus size={15} />}
-                onClick={() => openCredit("footer-1", 1, selected)}
-              >
-                加分
-              </Button>
+              <Tooltip title={unlocked && !selected.length ? "当前没有选中学生" : undefined}>
+                <span className="credit-btn-wrap">
+                  <Button
+                    type="primary"
+                    className="credit-pair-btn"
+                    disabled={!unlocked || !selected.length}
+                    icon={<Plus size={15} />}
+                    onClick={() => openCredit("footer-1", 1, selected)}
+                  >
+                    加分
+                  </Button>
+                </span>
+              </Tooltip>
             </CreditPopover>
             <CreditPopover
               creditKey="footer--1"
@@ -746,18 +799,22 @@ export default function ClientPage() {
               onActivity={resetLockTimer}
               target={creditTarget}
               onClose={() => setCreditTarget(undefined)}
-              onSubmit={values => submitCredit(selected, -1, values)}
+              onSubmit={(values, origin) => submitCredit(selected, -1, values, origin)}
             >
-              <Button
-                type="primary"
-                danger
-                className="credit-pair-btn"
-                disabled={!unlocked || !selected.length}
-                icon={<Minus size={15} />}
-                onClick={() => openCredit("footer--1", -1, selected)}
-              >
-                扣分
-              </Button>
+              <Tooltip title={unlocked && !selected.length ? "当前没有选中学生" : undefined}>
+                <span className="credit-btn-wrap">
+                  <Button
+                    type="primary"
+                    danger
+                    className="credit-pair-btn"
+                    disabled={!unlocked || !selected.length}
+                    icon={<Minus size={15} />}
+                    onClick={() => openCredit("footer--1", -1, selected)}
+                  >
+                    扣分
+                  </Button>
+                </span>
+              </Tooltip>
             </CreditPopover>
             {!unlocked && (
               <UnlockPopover
@@ -803,6 +860,7 @@ export default function ClientPage() {
           </Dropdown>
         </div>
       </footer>
+      <CreditCelebration event={celebration} />
     </div>
   );
 }
