@@ -42,6 +42,7 @@ export const POST = route<{ params: Promise<{ id: string }> }>(async (request, {
     rows?: StudentInput[];
     onDuplicate?: string;
     studentId?: string;
+    groupId?: string | null;
     status?: number;
   }>(request);
   const db = getDb();
@@ -50,6 +51,22 @@ export const POST = route<{ params: Promise<{ id: string }> }>(async (request, {
     const status = parseStatus(body.status);
     if (status === undefined) return jsonError("学生状态无效");
     db.prepare("UPDATE students SET status = ? WHERE id = ? AND class_id = ?").run(status, body.studentId, classId);
+    return NextResponse.json({ ok: true });
+  }
+  if (body.action === "group") {
+    if (!body.studentId) return jsonError("学生信息无效");
+    if (body.groupId !== null && typeof body.groupId !== "string") return jsonError("组别参数无效");
+    const groupId = body.groupId;
+    if (groupId) {
+      const group = db
+        .prepare("SELECT id FROM groups_table WHERE id = ? AND class_id = ? AND status = 1")
+        .get(groupId, classId);
+      if (!group) return jsonError("组别不存在或已停用", 404);
+    }
+    const result = db
+      .prepare("UPDATE students SET group_id = ? WHERE id = ? AND class_id = ? AND status = 1")
+      .run(groupId, body.studentId, classId);
+    if (!result.changes) return jsonError("学生不存在或已停用", 404);
     return NextResponse.json({ ok: true });
   }
   if (body.action === "update") {

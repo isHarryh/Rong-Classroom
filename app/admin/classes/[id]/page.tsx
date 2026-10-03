@@ -12,12 +12,14 @@ import {
   Download,
   Edit3,
   FileUp,
+  LayoutGrid,
   Plus,
   RotateCcw,
   Trash2,
   UserRound,
 } from "lucide-react";
 import * as XLSX from "xlsx";
+import { GroupingDialog } from "@/components/GroupingDialog";
 import { StatusTag } from "@/components/StatusTag";
 import { api, formatTime, useMessage, useResource } from "@/lib/client";
 
@@ -60,6 +62,11 @@ export default function ClassDetailPage({ params }: { params: Promise<{ id: stri
   const { message, notifyError } = useMessage();
   const [tab, setTab] = useState("students");
   const [showDeleted, setShowDeleted] = useState(false);
+  const [groupingOpen, setGroupingOpen] = useState(false);
+  const [groupOverrides, setGroupOverrides] = useState<{
+    source?: Bundle;
+    values: Record<string, string | null>;
+  }>({ values: {} });
   const [studentModal, setStudentModal] = useState(false);
   const [editingStudent, setEditingStudent] = useState<Student>();
   const [groupModal, setGroupModal] = useState(false);
@@ -112,10 +119,24 @@ export default function ClassDetailPage({ params }: { params: Promise<{ id: stri
     }
     return [...duplicates];
   }, [importRows]);
-  const [bundle, reload] = useResource(
+  const [loadedBundle, reload] = useResource(
     () => api<Bundle>(`/api/admin/classes/${classId}?includeDeleted=${showDeleted}`),
     [classId, showDeleted],
   );
+  const bundle = useMemo(() => {
+    if (!loadedBundle) return undefined;
+    const overrides = groupOverrides.source === loadedBundle ? groupOverrides.values : {};
+    if (!Object.keys(overrides).length) return loadedBundle;
+    return {
+      ...loadedBundle,
+      students: loadedBundle.students.map(student => {
+        if (!(student.id in overrides)) return student;
+        const groupId = overrides[student.id];
+        const groupName = groupId ? (loadedBundle.groups.find(group => group.id === groupId)?.name ?? null) : null;
+        return { ...student, groupId, groupName };
+      }),
+    };
+  }, [loadedBundle, groupOverrides]);
   const [reasons = []] = useResource(async () => (await api<{ reasons: Reason[] }>("/api/admin/reasons")).reasons, []);
   const recordQuery = useMemo(
     () =>
@@ -216,6 +237,27 @@ export default function ClassDetailPage({ params }: { params: Promise<{ id: stri
       refresh();
     } catch (err) {
       notifyError(err, "操作失败");
+    }
+  }
+  async function moveStudent(studentId: string, groupId: string | null) {
+    const student = bundle?.students.find(item => item.id === studentId);
+    if (!student) return;
+    const previous = student.groupId ?? null;
+    if (previous === groupId) return;
+    const apply = (value: string | null) =>
+      setGroupOverrides(current => ({
+        source: loadedBundle,
+        values: { ...(current.source === loadedBundle ? current.values : {}), [studentId]: value },
+      }));
+    apply(groupId);
+    try {
+      await api(`/api/admin/classes/${classId}/students`, {
+        method: "POST",
+        body: JSON.stringify({ action: "group", studentId, groupId }),
+      });
+    } catch (err) {
+      apply(previous);
+      notifyError(err, "分组调整失败");
     }
   }
   async function openStudentDetail(student: { id: string; name: string }) {
@@ -503,6 +545,9 @@ export default function ClassDetailPage({ params }: { params: Promise<{ id: stri
                 }}
               >
                 新增组别
+              </Button>
+              <Button icon={<LayoutGrid size={15} />} onClick={() => setGroupingOpen(true)}>
+                调整分组
               </Button>
             </div>
             <Table
@@ -793,6 +838,15 @@ export default function ClassDetailPage({ params }: { params: Promise<{ id: stri
           </div>
         </div>
       </Modal>
+      <GroupingDialog
+        open={groupingOpen}
+        groups={bundle.groups.filter(group => group.status === 1)}
+        students={bundle.students
+          .filter(student => student.status === 1)
+          .map(student => ({ id: student.id, name: student.name, groupId: student.groupId ?? undefined }))}
+        onClose={() => setGroupingOpen(false)}
+        onMove={moveStudent}
+      />
     </>
   );
 }

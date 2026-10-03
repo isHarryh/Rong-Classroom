@@ -2,10 +2,22 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button, ConfigProvider, Dropdown, Popover, Slider, Spin, Tooltip } from "antd";
-import { Delete, LockKeyhole, LogOut, Minus, MoreHorizontal, Plus, UnlockKeyhole, UsersRound, X } from "lucide-react";
+import {
+  Delete,
+  LayoutGrid,
+  LockKeyhole,
+  LogOut,
+  Minus,
+  MoreHorizontal,
+  Plus,
+  UnlockKeyhole,
+  UsersRound,
+  X,
+} from "lucide-react";
 import { useRouter } from "next/navigation";
 import { api, useMessage, useResource, ApiError } from "@/lib/client";
 import { CreditCelebration, type CreditCelebrationEvent } from "@/components/CreditCelebration";
+import { GroupingDialog } from "@/components/GroupingDialog";
 import { StudentChip, type ChipEffect } from "@/components/StudentChip";
 
 const CHIP_EFFECT_LIMIT = 30;
@@ -396,6 +408,11 @@ export default function ClientPage() {
   const [summaryWidth, setSummaryWidth] = useState(0);
   const [celebration, setCelebration] = useState<CreditCelebrationEvent>();
   const [chipEffects, setChipEffects] = useState<Record<string, ChipEffect>>({});
+  const [groupingOpen, setGroupingOpen] = useState(false);
+  const [groupOverrides, setGroupOverrides] = useState<{
+    source?: Bootstrap;
+    values: Record<string, string | null>;
+  }>({ values: {} });
   const celebrationSeq = useRef(0);
   const feedbackTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const lockTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -411,14 +428,22 @@ export default function ClientPage() {
   const data = useMemo(() => {
     if (!bootstrap) return undefined;
     const deltas = pending.source === bootstrap ? pending.deltas : {};
-    if (!Object.keys(deltas).length) return bootstrap;
+    const overrides = groupOverrides.source === bootstrap ? groupOverrides.values : {};
+    if (!Object.keys(deltas).length && !Object.keys(overrides).length) return bootstrap;
     return {
       ...bootstrap,
-      students: bootstrap.students.map(student =>
-        deltas[student.id] === undefined ? student : { ...student, balance: student.balance + deltas[student.id] },
-      ),
+      students: bootstrap.students.map(student => {
+        const delta = deltas[student.id];
+        const groupId = overrides[student.id];
+        if (delta === undefined && groupId === undefined) return student;
+        return {
+          ...student,
+          balance: student.balance + (delta ?? 0),
+          groupId: groupId === undefined ? student.groupId : (groupId ?? undefined),
+        };
+      }),
     };
-  }, [bootstrap, pending]);
+  }, [bootstrap, pending, groupOverrides]);
   const keepaliveAt = useRef(0);
   const sendKeepalive = useCallback(() => {
     const now = Date.now();
@@ -552,6 +577,24 @@ export default function ClientPage() {
       submitting.current = false;
     }
   }
+  async function moveStudent(studentId: string, groupId: string | null) {
+    const student = data?.students.find(item => item.id === studentId);
+    if (!student) return;
+    const previous = student.groupId ?? null;
+    if (previous === groupId) return;
+    const apply = (value: string | null) =>
+      setGroupOverrides(current => ({
+        source: bootstrap,
+        values: { ...(current.source === bootstrap ? current.values : {}), [studentId]: value },
+      }));
+    apply(groupId);
+    try {
+      await api("/api/client/grouping", { method: "POST", body: JSON.stringify({ studentId, groupId }) });
+    } catch (err) {
+      apply(previous);
+      notifyError(err, "分组调整失败");
+    }
+  }
   async function logout() {
     await api("/api/auth/logout", { method: "POST" });
     router.replace("/login");
@@ -597,8 +640,13 @@ export default function ClientPage() {
       </header>
       <main className="client-body">
         <div className="client-section-heading">
-          <h1>小组学生列表</h1>
-          <p>选中学生气泡后可在底部栏进行积分操作。</p>
+          <div>
+            <h1>小组学生列表</h1>
+            <p>选中学生气泡后可在底部栏进行积分操作。</p>
+          </div>
+          <Button icon={<LayoutGrid size={15} />} onClick={() => setGroupingOpen(true)}>
+            调整分组
+          </Button>
         </div>
         {activeGroups.map(group => {
           const students = activeStudents.filter(student => student.groupId === group.id);
@@ -667,7 +715,16 @@ export default function ClientPage() {
                       anchorKey={`group-${group.id}-1`}
                       anchor={unlockAnchor}
                       unlock={unlock}
-                      onUnlocked={handleUnlocked}
+                      onUnlocked={() => {
+                        handleUnlocked();
+                        if (groupIds.length)
+                          setCreditTarget({
+                            key: `group-${group.id}-1`,
+                            direction: 1,
+                            ids: groupIds,
+                            label: group.name,
+                          });
+                      }}
                       onClose={() => setUnlockAnchor(undefined)}
                     >
                       {plusButton}
@@ -694,7 +751,16 @@ export default function ClientPage() {
                       anchorKey={`group-${group.id}--1`}
                       anchor={unlockAnchor}
                       unlock={unlock}
-                      onUnlocked={handleUnlocked}
+                      onUnlocked={() => {
+                        handleUnlocked();
+                        if (groupIds.length)
+                          setCreditTarget({
+                            key: `group-${group.id}--1`,
+                            direction: -1,
+                            ids: groupIds,
+                            label: group.name,
+                          });
+                      }}
                       onClose={() => setUnlockAnchor(undefined)}
                     >
                       {minusButton}
@@ -860,6 +926,13 @@ export default function ClientPage() {
           </Dropdown>
         </div>
       </footer>
+      <GroupingDialog
+        open={groupingOpen}
+        groups={activeGroups}
+        students={activeStudents.map(student => ({ id: student.id, name: student.name, groupId: student.groupId }))}
+        onClose={() => setGroupingOpen(false)}
+        onMove={moveStudent}
+      />
       <CreditCelebration event={celebration} />
     </div>
   );
