@@ -1,23 +1,6 @@
 import { NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
-import { HttpError, requireClassSession, route } from "@/lib/api";
-
-function parseDate(value: string | undefined, time: string) {
-  if (!value) return undefined;
-  const timestamp = new Date(`${value}T${time}`).getTime();
-  if (!Number.isFinite(timestamp)) throw new HttpError(400, "日期格式无效");
-  return timestamp;
-}
-
-function cleanRecordFilters(input: Record<string, string | undefined>) {
-  return {
-    studentId: input.studentId || undefined,
-    reasonId: input.reasonId || undefined,
-    from: parseDate(input.from, "00:00:00"),
-    to: parseDate(input.to, "23:59:59.999"),
-    type: input.type === "add" || input.type === "subtract" ? input.type : undefined,
-  };
-}
+import { jsonError, requireClassSession, route } from "@/lib/api";
 
 export const GET = route<{ params: Promise<{ id: string }> }>(async (request, { params }) => {
   const { id: classId } = await params;
@@ -25,33 +8,34 @@ export const GET = route<{ params: Promise<{ id: string }> }>(async (request, { 
   const search = new URL(request.url).searchParams;
   const page = Math.max(1, Math.floor(Number(search.get("page")) || 1));
   const pageSize = Math.min(100, Math.max(1, Math.floor(Number(search.get("pageSize")) || 20)));
-  const filters = cleanRecordFilters({
-    studentId: search.get("studentId") || undefined,
-    reasonId: search.get("reasonId") || undefined,
-    from: search.get("from") || undefined,
-    to: search.get("to") || undefined,
-    type: search.get("type") || undefined,
-  });
+  const from = search.get("from") || undefined;
+  const to = search.get("to") || undefined;
+  const fromTime = from ? new Date(`${from}T00:00:00`).getTime() : undefined;
+  const toTime = to ? new Date(`${to}T23:59:59.999`).getTime() : undefined;
+  if ((from && fromTime === undefined) || (to && toTime === undefined)) return jsonError("日期格式无效");
+  const filterType = search.get("type") || undefined;
   const where = ["s.class_id = ?"];
   const args: (string | number)[] = [classId];
-  if (filters.studentId) {
+  const studentId = search.get("studentId") || undefined;
+  if (studentId) {
     where.push("r.student_id = ?");
-    args.push(filters.studentId);
+    args.push(studentId);
   }
-  if (filters.reasonId) {
+  const reasonId = search.get("reasonId") || undefined;
+  if (reasonId) {
     where.push("r.reason_id = ?");
-    args.push(filters.reasonId);
+    args.push(reasonId);
   }
-  if (filters.from) {
+  if (fromTime) {
     where.push("r.created_at >= ?");
-    args.push(filters.from);
+    args.push(fromTime);
   }
-  if (filters.to) {
+  if (toTime) {
     where.push("r.created_at <= ?");
-    args.push(filters.to);
+    args.push(toTime);
   }
-  if (filters.type === "add") where.push("r.delta > 0");
-  if (filters.type === "subtract") where.push("r.delta < 0");
+  if (filterType === "add") where.push("r.delta > 0");
+  if (filterType === "subtract") where.push("r.delta < 0");
   const db = getDb();
   const condition = where.join(" AND ");
   const total = (

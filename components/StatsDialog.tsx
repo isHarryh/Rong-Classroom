@@ -5,6 +5,7 @@ import dynamic from "next/dynamic";
 import { Button, Divider, Empty, Modal, Segmented, Spin, Table, Tabs } from "antd";
 import { ChevronLeft, ChevronRight, TrendingUp, Trophy } from "lucide-react";
 import { api, useResource } from "@/lib/client";
+import { LoadError } from "@/components/LoadError";
 
 const Column = dynamic(() => import("@ant-design/plots").then(mod => mod.Column), { ssr: false });
 
@@ -118,7 +119,7 @@ export function StatsDialog({ open, onClose }: { open: boolean; onClose: () => v
     if (period !== "all" && anchor) params.set("anchor", anchor);
     return params.toString();
   }, [period, anchor]);
-  const [stats] = useResource(
+  const [stats, reloadStats, , statsError] = useResource(
     () => (open ? api<Stats>(`/api/client/stats?${query}`) : Promise.resolve(undefined)),
     [open, query],
   );
@@ -176,7 +177,9 @@ export function StatsDialog({ open, onClose }: { open: boolean; onClose: () => v
           </div>
         )}
       </div>
-      {!stats ? (
+      {statsError && open ? (
+        <LoadError title="统计数据加载失败" onRetry={reloadStats} />
+      ) : !stats ? (
         <div className="stats-loading">
           <Spin />
         </div>

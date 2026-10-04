@@ -25,23 +25,32 @@ export const POST = route(async (request: Request) => {
     db.prepare(
       "INSERT INTO credit_reasons (id, sort_id, name, parent_id, status, created_at) VALUES (?, ?, ?, ?, 1, ?)",
     ).run(crypto.randomUUID(), nextSortId(db, "credit_reasons", parentId), name, parentId, Date.now());
-  } else if (action === "update") {
+    return NextResponse.json({ ok: true }, { status: 201 });
+  }
+  if (action === "update") {
     const name = String(body.name || "").trim();
     if (!name || !body.id) return jsonError("原因信息无效");
-    db.prepare("UPDATE credit_reasons SET name = ? WHERE id = ?").run(name, String(body.id));
+    const result = db.prepare("UPDATE credit_reasons SET name = ? WHERE id = ?").run(name, String(body.id));
+    if (!result.changes) return jsonError("原因不存在", 404);
   } else if (action === "status") {
     if (!body.id) return jsonError("原因状态无效");
     const status = parseStatus(body.status);
     if (status === undefined) return jsonError("原因状态无效");
     const id = String(body.id);
+    let missing = false;
     const update = db.transaction(() => {
-      db.prepare("UPDATE credit_reasons SET status = ? WHERE id = ?").run(status, id);
+      const result = db.prepare("UPDATE credit_reasons SET status = ? WHERE id = ?").run(status, id);
+      if (!result.changes) {
+        missing = true;
+        return;
+      }
       db.prepare("UPDATE credit_reasons SET status = ? WHERE parent_id = ?").run(status, id);
     });
     update();
+    if (missing) return jsonError("原因不存在", 404);
   } else if (action === "move") {
     const id = String(body.id || "");
-    if (!db.prepare("SELECT id FROM credit_reasons WHERE id = ?").get(id)) return jsonError("原因不存在");
+    if (!db.prepare("SELECT id FROM credit_reasons WHERE id = ?").get(id)) return jsonError("原因不存在", 404);
     moveSortedRow(db, "credit_reasons", id, body.direction === "up" ? -1 : 1);
   } else return jsonError("不支持的原因操作");
   return NextResponse.json({ ok: true });

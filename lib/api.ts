@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { SUPERADMIN_SUB, getSession, type Session } from "./auth";
 import { getDb } from "./db";
+import { beginAttempt, clearFailures } from "./ratelimit";
 
 export class HttpError extends Error {
   constructor(
@@ -27,7 +28,41 @@ export function route<C>(handler: (request: Request, context: C) => Promise<Resp
 }
 
 export async function readJson<T>(request: Request): Promise<T> {
-  return (await request.json().catch(() => ({}))) as T;
+  try {
+    return (await request.json()) as T;
+  } catch {
+    throw new HttpError(400, "请求体格式无效");
+  }
+}
+
+export function readIncludeDeleted(request: Request) {
+  return new URL(request.url).searchParams.get("includeDeleted") === "true";
+}
+
+export type Term = { termYear: number; termNum: number };
+
+export function validateTerm(input: { termYear?: unknown; termNum?: unknown }): Term | undefined {
+  const termYear = Number(input.termYear);
+  const termNum = Number(input.termNum);
+  if (!Number.isInteger(termYear) || termYear < 2000 || termYear > new Date().getFullYear() + 3) return undefined;
+  if (termNum !== 1 && termNum !== 2) return undefined;
+  return { termYear, termNum };
+}
+
+// Shared skeleton for credential checks (login and unlock): count the attempt up
+// front so concurrent requests cannot slip past the limit, then verify and either
+// clear the counter and succeed, or fail without extra bookkeeping.
+export async function attemptLogin<S>(
+  keys: string[],
+  verify: () => Promise<S | null> | S | null,
+  succeed: (value: S) => Promise<Response> | Response,
+  fail: () => Response,
+): Promise<Response> {
+  if (!beginAttempt(keys)) return jsonError("尝试过于频繁，请稍后再试", 429);
+  const value = await verify();
+  if (value === null) return fail();
+  for (const key of keys) clearFailures(key);
+  return succeed(value);
 }
 
 export function isActiveSession(session: Session) {

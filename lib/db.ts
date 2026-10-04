@@ -3,7 +3,10 @@ import path from "node:path";
 import Database from "better-sqlite3";
 
 const databasePath = process.env.DATABASE_PATH || path.join(process.cwd(), "data", "rong-classroom.db");
-let connection: Database.Database | undefined;
+// Next.js dev re-evaluates modules on hot reload; cache the singleton on globalThis
+// so the connection and schema survive reloads.
+type DbGlobal = typeof globalThis & { __rongDb?: Database.Database };
+const globalCache = globalThis as DbGlobal;
 
 export const STATUS = { DISABLED: 0, ENABLED: 1, DELETED: 2 } as const;
 const STATUS_VALUES: number[] = [STATUS.DISABLED, STATUS.ENABLED, STATUS.DELETED];
@@ -15,9 +18,9 @@ export function parseStatus(input: unknown) {
 }
 
 export function getDb(): Db {
-  if (connection) return connection;
+  if (globalCache.__rongDb) return globalCache.__rongDb;
   fs.mkdirSync(path.dirname(databasePath), { recursive: true });
-  connection = new Database(databasePath);
+  const connection = new Database(databasePath);
   connection.pragma("journal_mode = WAL");
   connection.pragma("foreign_keys = ON");
   connection.exec(`
@@ -98,12 +101,12 @@ export function getDb(): Db {
     CREATE INDEX IF NOT EXISTS idx_groups_class ON groups_table(class_id, sort_id);
     CREATE INDEX IF NOT EXISTS idx_reasons_parent ON credit_reasons(parent_id, sort_id);
   `);
-  seed();
+  seed(connection);
+  globalCache.__rongDb = connection;
   return connection;
 }
 
-function seed() {
-  const db = connection!;
+function seed(db: Db) {
   const now = Date.now();
   if (
     (
@@ -216,4 +219,46 @@ export function getClassBundle(db: Db, classId: string, includeDeleted = false) 
     )
     .all(classId);
   return { students, groups };
+}
+
+const CLIENT_SELECT = `
+  SELECT c.id, c.code, c.secret, c.class_id AS classId, c.status, cl.name AS className, cl.status AS classStatus
+  FROM clients c JOIN classes cl ON cl.id = c.class_id`;
+
+export type ClientWithClass = {
+  id: string;
+  code: string;
+  secret: string;
+  classId: string;
+  className: string;
+  status: number;
+  classStatus: number;
+};
+
+export function getClient(db: Db, id: string) {
+  return db.prepare(`${CLIENT_SELECT} WHERE c.id = ?`).get(id) as ClientWithClass | undefined;
+}
+
+export function getClientByCode(db: Db, code: string) {
+  return db.prepare(`${CLIENT_SELECT} WHERE c.code = ?`).get(code) as ClientWithClass | undefined;
+}
+
+export type AssignGroupResult = "ok" | "student-missing" | "group-missing";
+
+export function assignStudentGroup(
+  db: Db,
+  classId: string,
+  studentId: string,
+  groupId: string | null,
+): AssignGroupResult {
+  if (groupId) {
+    const group = db
+      .prepare("SELECT id FROM groups_table WHERE id = ? AND class_id = ? AND status = 1")
+      .get(groupId, classId);
+    if (!group) return "group-missing";
+  }
+  const result = db
+    .prepare("UPDATE students SET group_id = ? WHERE id = ? AND class_id = ? AND status = 1")
+    .run(groupId, studentId, classId);
+  return result.changes ? "ok" : "student-missing";
 }

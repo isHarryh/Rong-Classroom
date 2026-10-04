@@ -15,7 +15,7 @@ import {
 } from "@dnd-kit/core";
 
 export type GroupingGroup = { id: string; name: string };
-export type GroupingStudent = { id: string; name: string; groupId?: string };
+export type GroupingStudent = { id: string; name: string; groupId?: string | null };
 
 const UNGROUPED_ID = "__ungrouped__";
 

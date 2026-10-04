@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { getSuperAdmin } from "@/lib/auth";
-import { getDb } from "@/lib/db";
+import { STATUS, getDb, parseStatus } from "@/lib/db";
 import { jsonError, readJson, requireSuperAdmin, route } from "@/lib/api";
 
 export const GET = route(async () => {
@@ -39,9 +39,10 @@ export const PATCH = route(async (request: Request) => {
   const db = getDb();
   if (!db.prepare("SELECT id FROM teachers WHERE id = ?").get(id)) return jsonError("账号不存在", 404);
   if (body.action === "status") {
+    const status = parseStatus(body.status);
+    if (status === undefined || status === STATUS.DELETED) return jsonError("账号状态无效");
     if (id === session.sub) return jsonError("不能禁用当前账号");
-    if (body.status !== 0 && body.status !== 1) return jsonError("账号状态无效");
-    db.prepare("UPDATE teachers SET status = ? WHERE id = ?").run(body.status, id);
+    db.prepare("UPDATE teachers SET status = ? WHERE id = ?").run(status, id);
   } else {
     if (body.action !== undefined) return jsonError("不支持的账号操作");
     const name = String(body.name || "").trim();

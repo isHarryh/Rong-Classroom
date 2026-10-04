@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { randomInt } from "node:crypto";
 import { getDb, type Db, parseStatus } from "@/lib/db";
-import { canAccessClass, jsonError, ownerScope, readJson, requireSession, route } from "@/lib/api";
+import { canAccessClass, jsonError, ownerScope, readIncludeDeleted, readJson, requireSession, route } from "@/lib/api";
 
 function makeCode(db: Db) {
   const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
@@ -13,7 +13,7 @@ function makeCode(db: Db) {
 
 export const GET = route(async (request: Request) => {
   const session = await requireSession("admin");
-  const includeDeleted = new URL(request.url).searchParams.get("includeDeleted") === "true";
+  const includeDeleted = readIncludeDeleted(request);
   const scope = ownerScope(session, "cl");
   const clients = getDb()
     .prepare(
@@ -63,7 +63,8 @@ export const PATCH = route(async (request: Request) => {
     const status = parseStatus(body.status);
     if (status === undefined) return jsonError("设备状态无效");
     if (status === 1 && client.classStatus === 2) return jsonError("班级已删除，无法恢复该设备");
-    db.prepare("UPDATE clients SET status = ? WHERE id = ?").run(status, id);
+    const result = db.prepare("UPDATE clients SET status = ? WHERE id = ?").run(status, id);
+    if (!result.changes) return jsonError("设备不存在或无权访问", 404);
   } else {
     if (body.action !== undefined) return jsonError("不支持的设备操作");
     const secret = String(body.secret || "");

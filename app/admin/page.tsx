@@ -4,16 +4,9 @@ import { useMemo, useState } from "react";
 import { Alert, Select, Spin } from "antd";
 import { ArrowDown, ArrowUp, Grid2x2, Users } from "lucide-react";
 import { api, useResource } from "@/lib/client";
+import { LoadError } from "@/components/LoadError";
+import type { ClassItem } from "@/lib/types";
 
-type ClassItem = {
-  id: string;
-  name: string;
-  termYear: number;
-  termNum: number;
-  status: number;
-  studentCount: number;
-  groupCount: number;
-};
 type Metrics = {
   positive: number;
   negative: number;
@@ -21,31 +14,32 @@ type Metrics = {
 
 export default function DashboardPage() {
   const [selected, setSelected] = useState("");
-  const [classes = [], , classesLoading] = useResource(
+  const [classes = [], reloadClasses, classesLoading, classesError] = useResource(
     async () => (await api<{ classes: ClassItem[] }>("/api/admin/classes")).classes,
     [],
   );
   const classId = selected || classes[0]?.id || "";
-  const [metrics, , metricsLoading] = useResource(
-    async () =>
-      classId ? (await api<{ metrics: Metrics }>(`/api/admin/dashboard?classId=${classId}`)).metrics : undefined,
+  const [metrics, reloadMetrics, metricsLoading, metricsError] = useResource(
+    async () => (classId ? await api<Metrics>(`/api/admin/dashboard?classId=${classId}`) : undefined),
     [classId],
   );
   const loading = classesLoading || metricsLoading;
-  const metricsFailed = Boolean(classId) && !metricsLoading && !metrics;
-  const current = useMemo(() => classes.find(item => item.id === classId), [classes, classId]);
+  const current = useMemo(
+    () => (classesError ? undefined : classes.find(item => item.id === classId)),
+    [classes, classId, classesError],
+  );
   const cards =
     metrics && current
       ? [
           {
             label: "学生总数",
-            value: current.studentCount,
+            value: current.studentCount ?? 0,
             icon: Users,
             className: "",
           },
           {
             label: "小组总数",
-            value: current.groupCount,
+            value: current.groupCount ?? 0,
             icon: Grid2x2,
             className: "",
           },
@@ -83,12 +77,14 @@ export default function DashboardPage() {
           />
         </div>
       </div>
-      {loading ? (
+      {loading && !current ? (
         <div className="empty-state">
           <Spin />
         </div>
-      ) : metricsFailed ? (
-        <Alert type="error" showIcon title="指标加载失败" description="请稍后重试或刷新页面。" />
+      ) : classesError ? (
+        <LoadError title="班级列表加载失败" onRetry={reloadClasses} />
+      ) : metricsError ? (
+        <LoadError title="指标加载失败" onRetry={reloadMetrics} />
       ) : !current ? (
         <Alert type="info" showIcon title="还没有可用班级" description="请先在班级管理中创建一个班级。" />
       ) : (

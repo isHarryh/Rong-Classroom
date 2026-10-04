@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { requireSession, route } from "@/lib/api";
-import { getClassBundle, getDb, getOrderedReasons, touchClient } from "@/lib/db";
+import { jsonError, requireSession, route } from "@/lib/api";
+import { getDb, getOrderedReasons, getClassBundle, touchClient } from "@/lib/db";
 
 export const GET = route(async () => {
   const session = await requireSession("client");
@@ -9,7 +9,8 @@ export const GET = route(async () => {
     .prepare(
       "SELECT c.id, c.code, c.class_id AS classId, cl.name AS className FROM clients c JOIN classes cl ON cl.id = c.class_id WHERE c.id = ?",
     )
-    .get(session.sub) as { id: string; code: string; classId: string; className: string };
+    .get(session.sub) as { id: string; code: string; classId: string; className: string } | undefined;
+  if (!client) return jsonError("设备不存在", 404);
   touchClient(db, client.id);
   const reasons = getOrderedReasons(db, true);
   return NextResponse.json({

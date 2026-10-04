@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
 import { getClassBundle, getDb, parseStatus } from "@/lib/db";
-import { jsonError, readJson, requireClassSession, route } from "@/lib/api";
+import { jsonError, readIncludeDeleted, readJson, requireClassSession, route, validateTerm } from "@/lib/api";
 
 export const GET = route<{ params: Promise<{ id: string }> }>(async (request, { params }) => {
   const { id } = await params;
   const { class: classInfo } = await requireClassSession(id, true);
-  const includeDeleted = new URL(request.url).searchParams.get("includeDeleted") === "true";
+  const includeDeleted = readIncludeDeleted(request);
   return NextResponse.json({
     class: classInfo,
     ...getClassBundle(getDb(), id, includeDeleted),
@@ -28,13 +28,12 @@ export const PATCH = route<{ params: Promise<{ id: string }> }>(async (request, 
   } else {
     if (body.action !== undefined) return jsonError("不支持的班级操作");
     const name = String(body.name || "").trim();
-    const termYear = Number(body.termYear);
-    const termNum = Number(body.termNum);
-    if (!name || !Number.isInteger(termYear) || ![1, 2].includes(termNum)) return jsonError("班级信息无效");
+    const term = validateTerm(body);
+    if (!name || !term) return jsonError("班级信息无效");
     db.prepare("UPDATE classes SET name = ?, term_year = ?, term_num = ? WHERE id = ?").run(
       name,
-      termYear,
-      termNum,
+      term.termYear,
+      term.termNum,
       id,
     );
   }
