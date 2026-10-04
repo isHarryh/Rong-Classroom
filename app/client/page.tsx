@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button, ConfigProvider, Dropdown, Popover, Slider, Spin, Tooltip } from "antd";
 import {
+  ChartColumn,
   Delete,
   LayoutGrid,
   LockKeyhole,
@@ -18,6 +19,7 @@ import { useRouter } from "next/navigation";
 import { api, useMessage, useResource, ApiError } from "@/lib/client";
 import { CreditCelebration, type CreditCelebrationEvent } from "@/components/CreditCelebration";
 import { GroupingDialog } from "@/components/GroupingDialog";
+import { StatsDialog } from "@/components/StatsDialog";
 import { StudentChip, type ChipEffect } from "@/components/StudentChip";
 
 const CHIP_EFFECT_LIMIT = 30;
@@ -409,6 +411,7 @@ export default function ClientPage() {
   const [celebration, setCelebration] = useState<CreditCelebrationEvent>();
   const [chipEffects, setChipEffects] = useState<Record<string, ChipEffect>>({});
   const [groupingOpen, setGroupingOpen] = useState(false);
+  const [statsOpen, setStatsOpen] = useState(false);
   const [groupOverrides, setGroupOverrides] = useState<{
     source?: Bootstrap;
     values: Record<string, string | null>;
@@ -901,6 +904,9 @@ export default function ClientPage() {
               </UnlockPopover>
             )}
           </div>
+          <Button icon={<ChartColumn size={15} />} onClick={() => setStatsOpen(true)}>
+            数据统计
+          </Button>
           <Dropdown
             trigger={["click"]}
             placement="topRight"
@@ -933,6 +939,7 @@ export default function ClientPage() {
         onClose={() => setGroupingOpen(false)}
         onMove={moveStudent}
       />
+      <StatsDialog open={statsOpen} onClose={() => setStatsOpen(false)} />
       <CreditCelebration event={celebration} />
     </div>
   );

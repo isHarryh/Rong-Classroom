@@ -120,6 +120,35 @@ html:has(.client-layout) ::-webkit-scrollbar-track, html:has(.client-layout) ::-
 .grouping-student.dragging { opacity: .35; }
 .grouping-student.overlay { cursor: grabbing; border-color: var(--green); box-shadow: 0 6px 16px rgba(23, 107, 93, .22); }
 .grouping-empty { color: var(--muted); font-size: 13px; }
+.stats-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.stats-period-nav { display: flex; align-items: center; gap: 8px; }
+.stats-period-nav b { min-width: 170px; text-align: center; }
+.stats-loading { display: grid; place-items: center; min-height: 280px; }
+.stats-metric-toggle { margin-bottom: 10px; }
+.stats-achievement { margin-bottom: 12px; }
+.stats-reason-section h4 { margin: 0 0 8px; font-size: 14px; }
+.stats-achievement-title { display: flex; align-items: center; justify-content: center; gap: 7px; margin: 0 0 4px; font-size: 15px; }
+.stats-achievement-title::before, .stats-achievement-title::after { content: ""; width: 36px; height: 2px; border-radius: 2px; }
+.stats-achievement-title.star { color: var(--amber); }
+.stats-achievement-title.star::before { background: linear-gradient(90deg, transparent, rgba(199, 121, 34, .55)); }
+.stats-achievement-title.star::after { background: linear-gradient(90deg, rgba(199, 121, 34, .55), transparent); }
+.stats-achievement-title.progress { color: var(--green); }
+.stats-achievement-title.progress::before { background: linear-gradient(90deg, transparent, rgba(23, 107, 93, .5)); }
+.stats-achievement-title.progress::after { background: linear-gradient(90deg, rgba(23, 107, 93, .5), transparent); }
+.stats-achievement-divider { margin: 4px 0 16px; }
+.stats-podium { display: flex; align-items: flex-end; justify-content: center; gap: 12px; margin: 22px 0 10px; }
+.stats-podium-slot { flex: 1 1 0; max-width: 240px; display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.stats-podium-cards { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; overflow: hidden; }
+.stats-podium-card { display: flex; flex-direction: column; align-items: center; padding: 6px 12px; background: #fff; border: 1px solid var(--line); border-radius: 8px; }
+.stats-podium-card .name { font-weight: 600; }
+.stats-podium-card .value { color: var(--green); font-size: 12px; }
+.stats-podium-card .rate { color: var(--amber); font-size: 12px; }
+.stats-podium-more { display: flex; align-items: center; font-size: 12px; line-height: 1; }
+.stats-podium-step { display: flex; align-items: center; justify-content: center; width: 100%; border-radius: 8px 8px 0 0; color: #fff; font-size: 22px; font-weight: 800; }
+.stats-podium-slot.slot-1 .stats-podium-step { height: 104px; background: #d9a13b; }
+.stats-podium-slot.slot-2 .stats-podium-step { height: 72px; background: #97a6a1; }
+.stats-podium-slot.slot-3 .stats-podium-step { height: 52px; background: #bd8a5c; }
+.stats-reason-section { margin-bottom: 16px; }
 .client-footer { position: fixed; z-index: 4; right: 0; bottom: 0; left: 0; display: flex; align-items: center; justify-content: space-between; gap: 18px; min-height: 78px; padding: 13px 24px; background: rgba(255,255,255,.96); border-top: 1px solid var(--line); box-shadow: 0 -4px 16px rgba(30, 62, 54, .06); }
 .client-footer .selected-summary { flex: 1; min-width: 0; overflow: hidden; color: var(--muted); white-space: nowrap; text-overflow: ellipsis; }
 .client-footer .footer-actions { display: flex; flex-shrink: 0; gap: 8px; }
