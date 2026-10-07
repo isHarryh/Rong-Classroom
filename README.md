@@ -28,6 +28,8 @@ pnpm build
 pnpm start
 ```
 
+生产部署可用 PM2：`pm2 start ecosystem.config.cjs`，监听端口等配置见 `ecosystem.config.cjs`，需与 nginx 反代目标一致。
+
 ## 页面
 
 - `/`：按登录状态分发到管理端、教室端或登录页
