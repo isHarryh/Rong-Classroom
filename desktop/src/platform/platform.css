@@ -1,0 +1,148 @@
+:root {
+  --edge-thickness: 56px;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: transparent;
+  font-family: "Microsoft YaHei", "Segoe UI", sans-serif;
+}
+
+.platform {
+  position: fixed;
+  inset: 0;
+}
+
+.edge {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 13px;
+  letter-spacing: 4px;
+  user-select: none;
+  cursor: pointer;
+  background-color: rgba(18, 22, 26, 0.55);
+  background-image: repeating-linear-gradient(
+    45deg,
+    rgba(255, 255, 255, 0.07) 0,
+    rgba(255, 255, 255, 0.07) 6px,
+    transparent 6px,
+    transparent 14px
+  );
+}
+
+.edge:hover {
+  background-color: rgba(18, 22, 26, 0.72);
+}
+
+.edge-top {
+  top: 0;
+  left: 0;
+  right: 0;
+  height: var(--edge-thickness);
+}
+
+.edge-bottom {
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: var(--edge-thickness);
+}
+
+.edge-left {
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: var(--edge-thickness);
+  writing-mode: vertical-rl;
+}
+
+.edge-right {
+  top: 0;
+  bottom: 0;
+  right: 0;
+  width: var(--edge-thickness);
+  writing-mode: vertical-rl;
+}
+
+.platform-center {
+  position: absolute;
+  left: var(--edge-thickness);
+  top: var(--edge-thickness);
+  right: var(--edge-thickness);
+  bottom: var(--edge-thickness);
+  overflow: hidden;
+  background: transparent;
+}
+
+.platform-blackboard {
+  position: absolute;
+  inset: 0;
+}
+
+.platform-placeholder {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: rgba(255, 255, 255, 0.85);
+  background-color: rgba(18, 22, 26, 0.9);
+  font-size: 16px;
+}
+
+.platform-error-address {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.platform-placeholder button {
+  padding: 8px 24px;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.platform-placeholder button:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.mode-button {
+  position: absolute;
+  bottom: 0;
+  width: var(--edge-thickness);
+  height: var(--edge-thickness);
+  box-sizing: border-box;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 0;
+  background: rgba(18, 22, 26, 0.75);
+  color: #ffffff;
+  font-size: 14px;
+  cursor: pointer;
+  z-index: 2;
+}
+
+.mode-button:hover {
+  background: rgba(40, 48, 56, 0.9);
+}
+
+.mode-left {
+  left: 0;
+}
+
+.mode-right {
+  right: 0;
+}

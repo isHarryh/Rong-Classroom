@@ -1,6 +1,8 @@
 node_modules/
 .next/
 data/
+dist/
+src-tauri/target/
 .env*
 !.env.example
 *.tsbuildinfo

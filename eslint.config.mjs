@@ -4,6 +4,9 @@ import nextTypescript from "eslint-config-next/typescript";
 
 export default defineConfig([
   {
+    ignores: ["desktop/**"],
+  },
+  {
     extends: [...nextCoreWebVitals, ...nextTypescript],
   },
 ]);
