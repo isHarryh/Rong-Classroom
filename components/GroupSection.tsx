@@ -9,7 +9,8 @@ import { CreditPopover, UnlockPopover } from "@/components/CreditPopovers";
 import { StudentChips } from "@/components/StudentChips";
 
 // One group block (header actions plus student chips). Group-wide credits share
-// the "group-1"/"group--1" amount keys across all groups by design.
+// the "group-1"/"group--1" amount keys across all groups by design. In pet mode
+// the credit actions are hidden and chips become pet cards.
 export function GroupSection({
   group,
   students,
@@ -30,6 +31,11 @@ export function GroupSection({
   setCreditTarget,
   submitCredit,
   handleUnlocked,
+  petMode = false,
+  actionsHidden = false,
+  onOpenPet,
+  petAnimations = true,
+  evolvingPets,
 }: {
   group: { id: string; name: string };
   students: Student[];
@@ -55,6 +61,11 @@ export function GroupSection({
     origin?: { x: number; y: number },
   ) => void;
   handleUnlocked: () => void;
+  petMode?: boolean;
+  actionsHidden?: boolean;
+  onOpenPet?: (id: string) => void;
+  petAnimations?: boolean;
+  evolvingPets?: Record<string, boolean>;
 }) {
   const groupIds = students.map(student => student.id);
   const groupSelected = students.length > 0 && students.every(student => selected.includes(student.id));
@@ -80,12 +91,12 @@ export function GroupSection({
     </Button>
   );
   return (
-    <section className="group-block">
+    <section className="group-block" data-flip-group={group.id}>
       <div className="group-header">
         <strong>
           {group.name} <span className="muted">· {students.length} 人</span>
         </strong>
-        <div style={{ display: "flex", gap: 8 }}>
+        <div className={`group-header-actions ${actionsHidden ? "is-hidden" : ""}`} inert={actionsHidden}>
           <Button
             size="small"
             icon={<UsersRound size={14} />}
@@ -174,7 +185,16 @@ export function GroupSection({
           )}
         </div>
       </div>
-      <StudentChips students={students} selected={selected} chipEffects={chipEffects} onToggle={toggleStudent} />
+      <StudentChips
+        students={students}
+        selected={selected}
+        chipEffects={chipEffects}
+        onToggle={toggleStudent}
+        petMode={petMode}
+        onOpenPet={onOpenPet}
+        petAnimations={petAnimations}
+        evolvingPets={evolvingPets}
+      />
       {!students.length && (
         <div className="muted" style={{ padding: "8px 0" }}>
           暂无启用学生

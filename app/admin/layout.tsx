@@ -15,7 +15,7 @@ const items = [
 ];
 
 const systemItems = [
-  { href: "/admin/settings", label: "原因设置", icon: Settings },
+  { href: "/admin/settings", label: "系统设置", icon: Settings },
   { href: "/admin/accounts", label: "账号管理", icon: ShieldCheck },
 ];
 

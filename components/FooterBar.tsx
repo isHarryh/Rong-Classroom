@@ -30,6 +30,7 @@ export function FooterBar({
   lock,
   onStats,
   onLogout,
+  petMode,
 }: {
   students: Student[];
   selected: string[];
@@ -55,6 +56,7 @@ export function FooterBar({
   lock: () => void;
   onStats: () => void;
   onLogout: () => void;
+  petMode: boolean;
 }) {
   const selectedNames = selected
     .map(id => students.find(student => student.id === id)?.name)
@@ -72,11 +74,15 @@ export function FooterBar({
   const summary = fitSummary(selectedNames, summaryEl, summaryWidth);
   return (
     <footer className="client-footer">
-      <Button icon={<X size={15} />} onClick={() => setSelected([])} disabled={!selected.length}>
-        清空选择
-      </Button>
+      {!petMode && (
+        <Button icon={<X size={15} />} onClick={() => setSelected([])} disabled={!selected.length}>
+          清空选择
+        </Button>
+      )}
       <div className="selected-summary" ref={setSummaryEl}>
-        {selected.length ? (
+        {petMode ? (
+          "宠物模式：点击学生卡片查看宠物详情"
+        ) : selected.length ? (
           <>
             <b>已选择：</b>
             {summary?.text}
@@ -87,81 +93,83 @@ export function FooterBar({
         )}
       </div>
       <div className="footer-actions">
-        <div className={`credit-actions ${unlocked ? "" : "locked"}`}>
-          <CreditPopover
-            creditKey="footer-1"
-            direction={1}
-            ids={selected}
-            placement="topRight"
-            stages={reasonStages}
-            amount={creditAmount("footer-1")}
-            onAmountChange={setCreditAmount("footer-1")}
-            onActivity={resetLockTimer}
-            target={creditTarget}
-            onClose={() => setCreditTarget(undefined)}
-            onSubmit={(values, origin) => submitCredit(selected, 1, values, origin)}
-          >
-            <Tooltip title={unlocked && !selected.length ? "当前没有选中学生" : undefined}>
-              <span className="credit-btn-wrap">
-                <Button
-                  type="primary"
-                  className="credit-pair-btn"
-                  disabled={!unlocked || !selected.length}
-                  icon={<Plus size={15} />}
-                  onClick={() => openCredit("footer-1", 1, selected)}
-                >
-                  加分
-                </Button>
-              </span>
-            </Tooltip>
-          </CreditPopover>
-          <CreditPopover
-            creditKey="footer--1"
-            direction={-1}
-            ids={selected}
-            placement="topRight"
-            stages={reasonStages}
-            amount={creditAmount("footer--1")}
-            onAmountChange={setCreditAmount("footer--1")}
-            onActivity={resetLockTimer}
-            target={creditTarget}
-            onClose={() => setCreditTarget(undefined)}
-            onSubmit={(values, origin) => submitCredit(selected, -1, values, origin)}
-          >
-            <Tooltip title={unlocked && !selected.length ? "当前没有选中学生" : undefined}>
-              <span className="credit-btn-wrap">
-                <Button
-                  type="primary"
-                  danger
-                  className="credit-pair-btn"
-                  disabled={!unlocked || !selected.length}
-                  icon={<Minus size={15} />}
-                  onClick={() => openCredit("footer--1", -1, selected)}
-                >
-                  扣分
-                </Button>
-              </span>
-            </Tooltip>
-          </CreditPopover>
-          {!unlocked && (
-            <UnlockPopover
-              anchorKey="cta"
-              anchor={unlockAnchor}
-              unlock={unlock}
-              onUnlocked={handleUnlocked}
-              onClose={() => setUnlockAnchor(undefined)}
+        {!petMode && (
+          <div className={`credit-actions ${unlocked ? "" : "locked"}`}>
+            <CreditPopover
+              creditKey="footer-1"
+              direction={1}
+              ids={selected}
+              placement="topRight"
+              stages={reasonStages}
+              amount={creditAmount("footer-1")}
+              onAmountChange={setCreditAmount("footer-1")}
+              onActivity={resetLockTimer}
+              target={creditTarget}
+              onClose={() => setCreditTarget(undefined)}
+              onSubmit={(values, origin) => submitCredit(selected, 1, values, origin)}
             >
-              <Button
-                type="primary"
-                className="unlock-cta"
-                icon={<UnlockKeyhole size={15} />}
-                onClick={() => setUnlockAnchor(current => (current === "cta" ? undefined : "cta"))}
+              <Tooltip title={unlocked && !selected.length ? "当前没有选中学生" : undefined}>
+                <span className="credit-btn-wrap">
+                  <Button
+                    type="primary"
+                    className="credit-pair-btn"
+                    disabled={!unlocked || !selected.length}
+                    icon={<Plus size={15} />}
+                    onClick={() => openCredit("footer-1", 1, selected)}
+                  >
+                    加分
+                  </Button>
+                </span>
+              </Tooltip>
+            </CreditPopover>
+            <CreditPopover
+              creditKey="footer--1"
+              direction={-1}
+              ids={selected}
+              placement="topRight"
+              stages={reasonStages}
+              amount={creditAmount("footer--1")}
+              onAmountChange={setCreditAmount("footer--1")}
+              onActivity={resetLockTimer}
+              target={creditTarget}
+              onClose={() => setCreditTarget(undefined)}
+              onSubmit={(values, origin) => submitCredit(selected, -1, values, origin)}
+            >
+              <Tooltip title={unlocked && !selected.length ? "当前没有选中学生" : undefined}>
+                <span className="credit-btn-wrap">
+                  <Button
+                    type="primary"
+                    danger
+                    className="credit-pair-btn"
+                    disabled={!unlocked || !selected.length}
+                    icon={<Minus size={15} />}
+                    onClick={() => openCredit("footer--1", -1, selected)}
+                  >
+                    扣分
+                  </Button>
+                </span>
+              </Tooltip>
+            </CreditPopover>
+            {!unlocked && (
+              <UnlockPopover
+                anchorKey="cta"
+                anchor={unlockAnchor}
+                unlock={unlock}
+                onUnlocked={handleUnlocked}
+                onClose={() => setUnlockAnchor(undefined)}
               >
-                解锁以加减分
-              </Button>
-            </UnlockPopover>
-          )}
-        </div>
+                <Button
+                  type="primary"
+                  className="unlock-cta"
+                  icon={<UnlockKeyhole size={15} />}
+                  onClick={() => setUnlockAnchor(current => (current === "cta" ? undefined : "cta"))}
+                >
+                  解锁以加减分
+                </Button>
+              </UnlockPopover>
+            )}
+          </div>
+        )}
         <Button icon={<ChartColumn size={15} />} onClick={onStats}>
           数据统计
         </Button>

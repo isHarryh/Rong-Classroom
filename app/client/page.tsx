@@ -1,14 +1,17 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Button, Spin } from "antd";
-import { LayoutGrid, LockKeyhole, UnlockKeyhole } from "lucide-react";
+import { LayoutGrid, LockKeyhole, PawPrint, UnlockKeyhole } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { ApiError, api, useMessage, useResource } from "@/lib/client";
-import type { CreditTarget, Student } from "@/lib/types";
+import { derivePetStage } from "@/lib/pets";
+import type { CreditTarget, PetThresholds, Student } from "@/lib/types";
 import { CreditCelebration, type CreditCelebrationEvent } from "@/components/CreditCelebration";
 import { GroupingDialog } from "@/components/GroupingDialog";
 import { StatsDialog } from "@/components/StatsDialog";
+import { PetDrawer } from "@/components/PetDrawer";
+import { PetPickerDialog } from "@/components/PetPickerDialog";
 import { type ChipEffect } from "@/components/StudentChip";
 import { StudentChips } from "@/components/StudentChips";
 import { GroupSection } from "@/components/GroupSection";
@@ -17,6 +20,30 @@ import { LoadError } from "@/components/LoadError";
 
 const CHIP_EFFECT_LIMIT = 30;
 const FEEDBACK_DURATION = 1600;
+// Keep the phase timings in sync with the content fade and group morph in globals.css.
+const MODE_FADE_OUT_MS = 150;
+const MODE_MORPH_MS = 280;
+const MODE_EASING = "cubic-bezier(.22, 1, .36, 1)";
+// useLayoutEffect only in the browser; the FLIP pass measures the DOM right after
+// the mode commits, before the browser paints the new layout.
+const useIsomorphicLayoutEffect = typeof window === "undefined" ? useEffect : useLayoutEffect;
+
+const prefersReducedMotion = () =>
+  typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+type FlipRects = { groups: Map<string, DOMRect>; tiles: Map<string, DOMRect> };
+
+function captureFlipRects(): FlipRects {
+  const groups = new Map<string, DOMRect>();
+  const tiles = new Map<string, DOMRect>();
+  for (const el of document.querySelectorAll<HTMLElement>("[data-flip-group]")) {
+    if (el.dataset.flipGroup) groups.set(el.dataset.flipGroup, el.getBoundingClientRect());
+  }
+  for (const el of document.querySelectorAll<HTMLElement>("[data-tile-id]")) {
+    if (el.dataset.tileId) tiles.set(el.dataset.tileId, el.getBoundingClientRect());
+  }
+  return { groups, tiles };
+}
 
 type Reason = { id: string; name: string; parentId?: string | null };
 type Bootstrap = {
@@ -25,6 +52,8 @@ type Bootstrap = {
   groups: { id: string; name: string; status: number }[];
   students: Student[];
   reasons: Reason[];
+  petEnabled: boolean;
+  petThresholds: PetThresholds | null;
 };
 
 export default function ClientPage() {
@@ -42,12 +71,21 @@ export default function ClientPage() {
   const [chipEffects, setChipEffects] = useState<Record<string, ChipEffect>>({});
   const [groupingOpen, setGroupingOpen] = useState(false);
   const [statsOpen, setStatsOpen] = useState(false);
+  const [petMode, setPetMode] = useState(false);
+  const [modePhase, setModePhase] = useState<"out" | "in">();
+  const [petDrawerId, setPetDrawerId] = useState<string>();
+  const [petPicker, setPetPicker] = useState<{ studentId: string; mode: "select" | "change" }>();
+  const [petSaving, setPetSaving] = useState(false);
+  const [evolvingPets, setEvolvingPets] = useState<Record<string, boolean>>({});
+  const [petAnimations, setPetAnimations] = useState(() => !prefersReducedMotion());
   const [groupOverrides, setGroupOverrides] = useState<{
     source?: Bootstrap;
     values: Record<string, string | null>;
   }>({ values: {} });
   const celebrationSeq = useRef(0);
   const feedbackTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const modeTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const flipRects = useRef<FlipRects | undefined>(undefined);
   const lockTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const [bootstrap, reload, , bootstrapError] = useResource(
     () => api<Bootstrap>("/api/client/bootstrap"),
@@ -57,22 +95,39 @@ export default function ClientPage() {
       if (err instanceof ApiError && (err.status === 401 || err.status === 403)) router.replace("/");
     },
   );
-  const [pending, setPending] = useState<{ source?: Bootstrap; deltas: Record<string, number> }>({ deltas: {} });
+  const [pending, setPending] = useState<{
+    source?: Bootstrap;
+    deltas: Record<string, number>;
+    growths: Record<string, number>;
+  }>({ deltas: {}, growths: {} });
   const data = useMemo(() => {
     if (!bootstrap) return undefined;
     const deltas = pending.source === bootstrap ? pending.deltas : {};
+    const growths = pending.source === bootstrap ? pending.growths : {};
     const overrides = groupOverrides.source === bootstrap ? groupOverrides.values : {};
-    if (!Object.keys(deltas).length && !Object.keys(overrides).length) return bootstrap;
+    if (!Object.keys(deltas).length && !Object.keys(growths).length && !Object.keys(overrides).length) return bootstrap;
     return {
       ...bootstrap,
       students: bootstrap.students.map(student => {
         const delta = deltas[student.id];
+        const growthDelta = growths[student.id];
         const groupId = overrides[student.id];
-        if (delta === undefined && groupId === undefined) return student;
+        if (delta === undefined && growthDelta === undefined && groupId === undefined) return student;
+        const growth = student.growth === undefined ? undefined : student.growth + (growthDelta ?? 0);
+        const thresholds = bootstrap.petThresholds;
+        const pet =
+          student.pet && growth !== undefined && thresholds
+            ? {
+                ...student.pet,
+                stage: Math.max(student.pet.stage, derivePetStage(growth, thresholds.stage2, thresholds.stage3)),
+              }
+            : student.pet;
         return {
           ...student,
           balance: student.balance + (delta ?? 0),
           groupId: groupId === undefined ? student.groupId : (groupId ?? null),
+          growth,
+          pet,
         };
       }),
     };
@@ -113,7 +168,13 @@ export default function ClientPage() {
     resetLockTimer();
     return () => clearTimeout(lockTimer.current);
   }, [resetLockTimer]);
-  useEffect(() => () => clearTimeout(feedbackTimer.current), []);
+  useEffect(
+    () => () => {
+      clearTimeout(feedbackTimer.current);
+      clearTimeout(modeTimer.current);
+    },
+    [],
+  );
   function attemptWrite(action: () => void, anchor: string) {
     if (!unlocked) {
       setUnlockAnchor(current => (current === anchor ? undefined : anchor));
@@ -187,17 +248,34 @@ export default function ClientPage() {
       } else {
         setChipEffects({});
       }
+      const thresholds = bootstrap?.petThresholds;
+      const evolving: Record<string, boolean> = {};
+      if (direction > 0 && thresholds) {
+        for (const id of ids) {
+          const student = data?.students.find(item => item.id === id);
+          if (!student?.pet || student.growth === undefined) continue;
+          const nextStage = derivePetStage(student.growth + amount, thresholds.stage2, thresholds.stage3);
+          if (nextStage > student.pet.stage) evolving[id] = true;
+        }
+      }
+      setEvolvingPets(evolving);
       clearTimeout(feedbackTimer.current);
       feedbackTimer.current = setTimeout(() => {
         setCelebration(undefined);
         setChipEffects({});
+        setEvolvingPets({});
       }, FEEDBACK_DURATION);
       setCreditTarget(undefined);
       setSelected([]);
       setPending(current => {
-        const next = { ...(current.source === bootstrap ? current.deltas : {}) };
-        for (const id of ids) next[id] = (next[id] || 0) + direction * amount;
-        return { source: bootstrap, deltas: next };
+        const source = current.source === bootstrap;
+        const deltas = { ...(source ? current.deltas : {}) };
+        const growths = { ...(source ? current.growths : {}) };
+        for (const id of ids) {
+          deltas[id] = (deltas[id] || 0) + direction * amount;
+          if (direction > 0) growths[id] = (growths[id] || 0) + amount;
+        }
+        return { source: bootstrap, deltas, growths };
       });
       resetLockTimer();
     } catch (err) {
@@ -251,6 +329,149 @@ export default function ClientPage() {
         };
       });
   }, [data]);
+  const petModeOn = petMode && Boolean(data?.petEnabled);
+  // During the fade-out phase petMode has not committed yet, so the heading uses
+  // the pending target mode to hide/show its action together with the list.
+  const modeTarget = modePhase === "out" ? !petMode : petModeOn;
+  // FLIP pass: right after the mode commits, shift group blocks back to their old
+  // position and morph every tile frame from its previous rect into the new one.
+  // The frames stay visible the whole time; only their geometry animates.
+  useIsomorphicLayoutEffect(() => {
+    if (modePhase !== "in") {
+      // Phase over: drop any inline morph leftovers from the group blocks.
+      for (const el of document.querySelectorAll<HTMLElement>("[data-flip-group]")) {
+        el.style.transition = "";
+        el.style.transform = "";
+      }
+      return;
+    }
+    const rects = flipRects.current;
+    flipRects.current = undefined;
+    if (!rects) return;
+    const shifted: HTMLElement[] = [];
+    for (const el of document.querySelectorAll<HTMLElement>("[data-flip-group]")) {
+      const previous = el.dataset.flipGroup ? rects.groups.get(el.dataset.flipGroup) : undefined;
+      if (!previous) continue;
+      const dy = previous.top - el.getBoundingClientRect().top;
+      if (Math.abs(dy) < 1) continue;
+      el.style.transition = "none";
+      el.style.transform = `translateY(${dy}px)`;
+      shifted.push(el);
+    }
+    for (const el of document.querySelectorAll<HTMLElement>("[data-tile-id]")) {
+      const previous = el.dataset.tileId ? rects.tiles.get(el.dataset.tileId) : undefined;
+      if (!previous) continue;
+      const current = el.getBoundingClientRect();
+      if (!current.width || !current.height) continue;
+      const dx = previous.left - current.left;
+      const dy = previous.top - current.top;
+      const sx = previous.width / current.width;
+      const sy = previous.height / current.height;
+      if (Math.abs(dx) < 1 && Math.abs(dy) < 1 && Math.abs(sx - 1) < 0.02 && Math.abs(sy - 1) < 0.02) continue;
+      el.style.transformOrigin = "0 0";
+      el.animate(
+        [
+          { transform: `translate(${dx}px, ${dy}px) scale(${sx}, ${sy})` },
+          { transform: "translate(0px, 0px) scale(1, 1)" },
+        ],
+        { duration: MODE_MORPH_MS, easing: MODE_EASING },
+      )
+        .finished.catch(() => undefined)
+        .finally(() => {
+          el.style.transformOrigin = "";
+        });
+    }
+    for (const el of shifted) {
+      el.style.transition = `transform ${MODE_MORPH_MS}ms ${MODE_EASING}`;
+      el.style.transform = "";
+    }
+  }, [modePhase]);
+  const petDrawerStudent = data?.students.find(student => student.id === petDrawerId);
+  // Same render-time reconciliation as the selection above: leaving pet mode
+  // behind when the global switch turns the feature off.
+  if (data && !data.petEnabled && petMode) {
+    setPetMode(false);
+    setPetDrawerId(undefined);
+    setPetPicker(undefined);
+  }
+  // Pet mode animates every card at 4 fps; when the device cannot keep up for a
+  // sustained period, fall back to static first frames for the rest of the session.
+  useEffect(() => {
+    if (!petModeOn || !petAnimations) return;
+    let raf = 0;
+    let frames = 0;
+    let windowStart = performance.now();
+    let slowAt: number | undefined;
+    const tick = (now: number) => {
+      frames++;
+      if (now - windowStart >= 1000) {
+        if (frames < 30) {
+          if (slowAt === undefined) slowAt = now;
+          if (now - slowAt >= 5000) {
+            setPetAnimations(false);
+            return;
+          }
+        } else {
+          slowAt = undefined;
+        }
+        frames = 0;
+        windowStart = now;
+      }
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [petModeOn, petAnimations]);
+  // Two-phase swap: fade only the tile contents out (frames and group headers stay
+  // visible), swap the mode at the invisible midpoint, then FLIP the frames from the
+  // old geometry into the new one and fade the new contents back in.
+  function togglePetMode() {
+    if (modePhase) return;
+    setCreditTarget(undefined);
+    setUnlockAnchor(undefined);
+    const leaving = petMode;
+    const commit = () => {
+      setPetMode(!leaving);
+      if (leaving) {
+        setPetDrawerId(undefined);
+        setPetPicker(undefined);
+      }
+    };
+    if (prefersReducedMotion()) {
+      commit();
+      return;
+    }
+    setModePhase("out");
+    modeTimer.current = setTimeout(() => {
+      flipRects.current = captureFlipRects();
+      commit();
+      setModePhase("in");
+      modeTimer.current = setTimeout(() => setModePhase(undefined), MODE_MORPH_MS);
+    }, MODE_FADE_OUT_MS);
+  }
+  async function confirmPet(species: string) {
+    if (!petPicker) return;
+    setPetSaving(true);
+    try {
+      await api("/api/client/pets", {
+        method: "POST",
+        body: JSON.stringify({ studentId: petPicker.studentId, species }),
+      });
+      message.success(petPicker.mode === "change" ? "宠物已更换" : "宠物已选择");
+      setPetPicker(undefined);
+      reload();
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 409) {
+        message.warning(err.message);
+        setPetPicker(undefined);
+        reload();
+        return;
+      }
+      notifyError(err, "操作失败");
+    } finally {
+      setPetSaving(false);
+    }
+  }
   if (!data) {
     if (bootstrapError) {
       return (
@@ -284,51 +505,73 @@ export default function ClientPage() {
         <div className="client-section-heading">
           <div>
             <h2>小组学生列表</h2>
-            <p>选中学生气泡后可在底部栏进行积分操作。</p>
+            <p key={petModeOn ? "pet" : "credit"} className="mode-hint">
+              {petModeOn ? "点击学生卡片可查看宠物详情与更换宠物。" : "选中学生气泡后可在底部栏进行积分操作。"}
+            </p>
           </div>
-          <Button icon={<LayoutGrid size={15} />} onClick={() => setGroupingOpen(true)}>
-            调整分组
-          </Button>
+          <div className="heading-actions">
+            {data.petEnabled && (
+              <Button type="primary" icon={<PawPrint size={15} />} onClick={togglePetMode}>
+                {petModeOn ? "返回积分模式" : "宠物模式"}
+              </Button>
+            )}
+            {!modeTarget && (
+              <Button icon={<LayoutGrid size={15} />} onClick={() => setGroupingOpen(true)}>
+                调整分组
+              </Button>
+            )}
+          </div>
         </div>
-        {activeGroups.map(group => (
-          <GroupSection
-            key={group.id}
-            group={group}
-            students={activeStudents.filter(student => student.groupId === group.id)}
-            selected={selected}
-            setSelected={setSelected}
-            unlocked={unlocked}
-            unlockAnchor={unlockAnchor}
-            creditTarget={creditTarget}
-            reasonStages={reasonStages}
-            chipEffects={chipEffects}
-            creditAmount={creditAmount}
-            setCreditAmount={setCreditAmount}
-            openCredit={openCredit}
-            toggleStudent={toggleStudent}
-            resetLockTimer={resetLockTimer}
-            unlock={unlock}
-            setUnlockAnchor={setUnlockAnchor}
-            setCreditTarget={setCreditTarget}
-            submitCredit={(ids, direction, values, origin) => submitCredit(ids, direction, values, origin)}
-            handleUnlocked={handleUnlocked}
-          />
-        ))}
-        {ungroupedStudents.length > 0 && (
-          <section className="group-block">
-            <div className="group-header">
-              <strong>
-                未分组 <span className="muted">· {ungroupedStudents.length} 人</span>
-              </strong>
-            </div>
-            <StudentChips
-              students={ungroupedStudents}
+        <div className={`mode-stage ${modePhase ? "mode-content-hidden" : ""}`}>
+          {activeGroups.map(group => (
+            <GroupSection
+              key={group.id}
+              group={group}
+              students={activeStudents.filter(student => student.groupId === group.id)}
               selected={selected}
+              setSelected={setSelected}
+              unlocked={unlocked}
+              unlockAnchor={unlockAnchor}
+              creditTarget={creditTarget}
+              reasonStages={reasonStages}
               chipEffects={chipEffects}
-              onToggle={toggleStudent}
+              creditAmount={creditAmount}
+              setCreditAmount={setCreditAmount}
+              openCredit={openCredit}
+              toggleStudent={toggleStudent}
+              resetLockTimer={resetLockTimer}
+              unlock={unlock}
+              setUnlockAnchor={setUnlockAnchor}
+              setCreditTarget={setCreditTarget}
+              submitCredit={(ids, direction, values, origin) => submitCredit(ids, direction, values, origin)}
+              handleUnlocked={handleUnlocked}
+              petMode={petModeOn}
+              actionsHidden={modeTarget}
+              onOpenPet={setPetDrawerId}
+              petAnimations={petAnimations}
+              evolvingPets={evolvingPets}
             />
-          </section>
-        )}
+          ))}
+          {ungroupedStudents.length > 0 && (
+            <section className="group-block" data-flip-group="ungrouped">
+              <div className="group-header">
+                <strong>
+                  未分组 <span className="muted">· {ungroupedStudents.length} 人</span>
+                </strong>
+              </div>
+              <StudentChips
+                students={ungroupedStudents}
+                selected={selected}
+                chipEffects={chipEffects}
+                onToggle={toggleStudent}
+                petMode={petModeOn}
+                onOpenPet={setPetDrawerId}
+                petAnimations={petAnimations}
+                evolvingPets={evolvingPets}
+              />
+            </section>
+          )}
+        </div>
       </main>
       <FooterBar
         students={activeStudents}
@@ -350,6 +593,7 @@ export default function ClientPage() {
         lock={lock}
         onStats={() => setStatsOpen(true)}
         onLogout={logout}
+        petMode={petModeOn}
       />
       <GroupingDialog
         open={groupingOpen}
@@ -359,6 +603,25 @@ export default function ClientPage() {
         onMove={moveStudent}
       />
       <StatsDialog open={statsOpen} onClose={() => setStatsOpen(false)} />
+      <PetDrawer
+        student={petDrawerStudent}
+        thresholds={data.petThresholds}
+        onOpenPicker={() =>
+          petDrawerStudent &&
+          setPetPicker({ studentId: petDrawerStudent.id, mode: petDrawerStudent.pet ? "change" : "select" })
+        }
+        onClose={() => setPetDrawerId(undefined)}
+      />
+      <PetPickerDialog
+        open={Boolean(petPicker)}
+        title={petPicker?.mode === "change" ? "更换宠物" : "选择宠物"}
+        currentSpecies={
+          petPicker ? data.students.find(student => student.id === petPicker.studentId)?.pet?.species : undefined
+        }
+        confirmLoading={petSaving}
+        onConfirm={confirmPet}
+        onCancel={() => setPetPicker(undefined)}
+      />
       <CreditCelebration event={celebration} />
     </div>
   );

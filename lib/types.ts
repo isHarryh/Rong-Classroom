@@ -15,6 +15,9 @@ export type ClassItem = {
 
 export type GroupItem = { id: string; name: string; classId?: string; status: number };
 
+export type PetInfo = { species: string; stage: number; recruitedAt: number };
+export type PetThresholds = { stage2: number; stage3: number };
+
 export type Student = {
   id: string;
   name: string;
@@ -25,6 +28,9 @@ export type Student = {
   status: number;
   balance: number;
   createdAt: number;
+  growth?: number;
+  pet?: PetInfo | null;
+  canChangeToday?: boolean;
 };
 
 export type Reason = { id: string; name: string; parentId?: string | null; status: number };

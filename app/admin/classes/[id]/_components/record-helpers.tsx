@@ -4,7 +4,7 @@ import { Button } from "antd";
 import type { TableColumnsType } from "antd";
 import * as XLSX from "xlsx";
 import { formatTime } from "@/lib/client";
-import type { Student } from "@/lib/types";
+import type { PetThresholds, Student } from "@/lib/types";
 
 export type RecordItem = {
   id: string;
@@ -87,7 +87,10 @@ export type Bundle = {
     name: string;
     termYear: number;
     termNum: number;
+    status: number;
   };
   groups: { id: string; name: string; classId?: string; status: number }[];
   students: Student[];
+  petEnabled: boolean;
+  petThresholds: PetThresholds | null;
 };

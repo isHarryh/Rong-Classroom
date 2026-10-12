@@ -2,12 +2,15 @@
 
 import { use, useMemo, useState } from "react";
 import Link from "next/link";
-import { Tabs } from "antd";
+import { Button, InputNumber, Tabs, Tag } from "antd";
 import { ArrowLeft } from "lucide-react";
 import { api, formatTerm, reasonLabel, useEditModal, useMessage, useResource } from "@/lib/client";
+import { DEFAULT_PET_STAGE2_AT, DEFAULT_PET_STAGE3_AT } from "@/lib/pets";
 import type { GroupItem, Reason, Student } from "@/lib/types";
 import { GroupingDialog } from "@/components/GroupingDialog";
 import { LoadError } from "@/components/LoadError";
+import { PetPickerDialog } from "@/components/PetPickerDialog";
+import { StatusTag } from "@/components/StatusTag";
 import { GroupsTab } from "./_components/GroupsTab";
 import { StudentModal } from "./_components/StudentModal";
 import { GroupModal } from "./_components/GroupModal";
@@ -29,10 +32,26 @@ export default function ClassDetailPage({ params }: { params: Promise<{ id: stri
   const studentModal = useEditModal<Student>();
   const groupModal = useEditModal<GroupItem>();
   const [studentDetail, setStudentDetail] = useState<StudentDetail>();
+  const [petDraft, setPetDraft] = useState<{ source?: Bundle; stage2: number; stage3: number }>({
+    stage2: DEFAULT_PET_STAGE2_AT,
+    stage3: DEFAULT_PET_STAGE3_AT,
+  });
+  const [petSaving, setPetSaving] = useState(false);
+  const [petPicker, setPetPicker] = useState<Student>();
+  const [petPickerSaving, setPetPickerSaving] = useState(false);
   const [loadedBundle, reload, bundleLoading, bundleError] = useResource(
     () => api<Bundle>(`/api/admin/classes/${classId}?includeDeleted=${showDeleted}`),
     [classId, showDeleted],
   );
+  // Adjusting state during render is the sanctioned way to resync the threshold
+  // inputs with fresh server data after saves and reloads.
+  if (loadedBundle?.petThresholds && petDraft.source !== loadedBundle) {
+    setPetDraft({
+      source: loadedBundle,
+      stage2: loadedBundle.petThresholds.stage2,
+      stage3: loadedBundle.petThresholds.stage3,
+    });
+  }
   const bundle = useMemo(() => {
     if (!loadedBundle) return undefined;
     const overrides = groupOverrides.source === loadedBundle ? groupOverrides.values : {};
@@ -159,6 +178,56 @@ export default function ClassDetailPage({ params }: { params: Promise<{ id: stri
       notifyError(err, "分组调整失败");
     }
   }
+  async function savePetThresholds() {
+    const stage2 = Number(petDraft.stage2);
+    const stage3 = Number(petDraft.stage3);
+    if (!Number.isInteger(stage2) || !Number.isInteger(stage3) || stage2 < 1 || stage3 <= stage2) {
+      message.warning("门槛需为正整数，且阶段 3 大于阶段 2");
+      return;
+    }
+    setPetSaving(true);
+    try {
+      await api(`/api/admin/classes/${classId}`, {
+        method: "PATCH",
+        body: JSON.stringify({ action: "petConfig", petStage2At: stage2, petStage3At: stage3 }),
+      });
+      message.success("宠物门槛已保存");
+      reload();
+    } catch (err) {
+      notifyError(err, "保存失败");
+    } finally {
+      setPetSaving(false);
+    }
+  }
+  async function randomPets() {
+    try {
+      const result = await api<{ count: number }>(`/api/admin/classes/${classId}/pets`, {
+        method: "POST",
+        body: JSON.stringify({ action: "random" }),
+      });
+      message.success(result.count ? `已为 ${result.count} 名学生分配宠物` : "没有需要分配的学生");
+      reload();
+    } catch (err) {
+      notifyError(err, "操作失败");
+    }
+  }
+  async function changePet(species: string) {
+    if (!petPicker) return;
+    setPetPickerSaving(true);
+    try {
+      await api(`/api/admin/classes/${classId}/pets`, {
+        method: "POST",
+        body: JSON.stringify({ action: "change", studentId: petPicker.id, species }),
+      });
+      message.success(petPicker.pet ? "宠物已更换" : "宠物已选择");
+      setPetPicker(undefined);
+      reload();
+    } catch (err) {
+      notifyError(err, "操作失败");
+    } finally {
+      setPetPickerSaving(false);
+    }
+  }
   async function openStudentDetail(student: { id: string; name: string }) {
     try {
       const records: RecordItem[] = [];
@@ -171,7 +240,8 @@ export default function ClassDetailPage({ params }: { params: Promise<{ id: stri
         records.push(...data.records);
         if (data.records.length < pageSize || records.length >= data.total) break;
       }
-      setStudentDetail({ student, records });
+      const full = bundle?.students.find(item => item.id === student.id);
+      setStudentDetail({ student: full ?? student, records });
     } catch (err) {
       notifyError(err, "读取明细失败");
     }
@@ -184,15 +254,53 @@ export default function ClassDetailPage({ params }: { params: Promise<{ id: stri
   return (
     <>
       <div className="page-heading">
-        <div>
+        <div className="page-heading-main">
           <Link href="/admin/classes" className="muted">
             <ArrowLeft size={15} style={{ verticalAlign: "middle" }} /> 返回班级列表
           </Link>
-          <h1 style={{ marginTop: 14 }}>{bundle.class.name}</h1>
-          <p>{formatTerm(bundle.class.termYear, bundle.class.termNum)}</p>
+          <div className="page-heading-title-row">
+            <h1>{bundle.class.name}</h1>
+            <dl className="page-heading-fields">
+              <div>
+                <dt>学期</dt>
+                <dd>{formatTerm(bundle.class.termYear, bundle.class.termNum)}</dd>
+              </div>
+              <div>
+                <dt>状态</dt>
+                <dd>
+                  <StatusTag value={bundle.class.status} />
+                </dd>
+              </div>
+            </dl>
+          </div>
+        </div>
+      </div>
+      <div className="section-panel pet-settings-panel">
+        <h3>宠物设置</h3>
+        <div className="pet-settings-row">
+          <span>当学生正向加分达到</span>
+          <InputNumber
+            min={1}
+            max={10000}
+            value={petDraft.stage2}
+            onChange={value => setPetDraft(current => ({ ...current, stage2: Number(value ?? 0) }))}
+          />
+          <span>后宠物晋升阶段 2，达到</span>
+          <InputNumber
+            min={2}
+            max={10000}
+            value={petDraft.stage3}
+            onChange={value => setPetDraft(current => ({ ...current, stage3: Number(value ?? 0) }))}
+          />
+          <span>后宠物晋升阶段 3。</span>
+          <Button type="primary" loading={petSaving} onClick={savePetThresholds}>
+            保存
+          </Button>
+          {!bundle.petEnabled && <Tag>已全局关闭</Tag>}
         </div>
       </div>
       <div className="section-panel">
+        <h3 style={{ margin: "0 0 6px" }}>班级管理</h3>
         <Tabs
           activeKey={tab}
           onChange={setTab}
@@ -216,6 +324,9 @@ export default function ClassDetailPage({ params }: { params: Promise<{ id: stri
             setShowDeleted={setShowDeleted}
             onRefresh={refresh}
             onStudentStatus={studentStatus}
+            petEnabled={bundle.petEnabled}
+            onChangePet={setPetPicker}
+            onRandomPets={randomPets}
           />
         )}
         {tab === "groups" && (
@@ -255,7 +366,21 @@ export default function ClassDetailPage({ params }: { params: Promise<{ id: stri
         onOk={() => groupModal.form.submit()}
         onFinish={saveGroup}
       />
-      <StudentDetailModal detail={studentDetail} onClose={() => setStudentDetail(undefined)} />
+      <StudentDetailModal
+        detail={studentDetail}
+        petEnabled={bundle.petEnabled}
+        onPetChange={() => {
+          const full = studentDetail && bundle.students.find(item => item.id === studentDetail.student.id);
+          if (!full) return;
+          if (full.status !== 1) {
+            message.warning("该学生已停用或已删除，无法更换宠物");
+            return;
+          }
+          setStudentDetail(undefined);
+          setPetPicker(full);
+        }}
+        onClose={() => setStudentDetail(undefined)}
+      />
       <GroupingDialog
         open={groupingOpen}
         groups={bundle.groups.filter(group => group.status === 1)}
@@ -264,6 +389,14 @@ export default function ClassDetailPage({ params }: { params: Promise<{ id: stri
           .map(student => ({ id: student.id, name: student.name, groupId: student.groupId }))}
         onClose={() => setGroupingOpen(false)}
         onMove={moveStudent}
+      />
+      <PetPickerDialog
+        open={Boolean(petPicker)}
+        title={petPicker?.pet ? "更换宠物" : "选择宠物"}
+        currentSpecies={petPicker?.pet?.species}
+        confirmLoading={petPickerSaving}
+        onConfirm={changePet}
+        onCancel={() => setPetPicker(undefined)}
       />
     </>
   );

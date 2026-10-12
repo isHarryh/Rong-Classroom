@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { jsonError, requireSession, route } from "@/lib/api";
-import { getDb, getOrderedReasons, getClassBundle, touchClient } from "@/lib/db";
+import { getDb, getOrderedReasons, getClassBundle, getPetEnabled, touchClient } from "@/lib/db";
+import { petDayStart } from "@/lib/pets";
 
 export const GET = route(async () => {
   const session = await requireSession("client");
@@ -13,10 +14,29 @@ export const GET = route(async () => {
   if (!client) return jsonError("设备不存在", 404);
   touchClient(db, client.id);
   const reasons = getOrderedReasons(db, true);
+  const petEnabled = getPetEnabled(db);
+  const bundle = getClassBundle(db, client.classId, false, petEnabled);
+  if (!petEnabled) {
+    return NextResponse.json({
+      client,
+      class: { id: client.classId, name: client.className },
+      reasons,
+      petEnabled: false,
+      students: bundle.students,
+      groups: bundle.groups,
+    });
+  }
+  const dayStart = petDayStart();
   return NextResponse.json({
     client,
     class: { id: client.classId, name: client.className },
     reasons,
-    ...getClassBundle(db, client.classId),
+    petEnabled: true,
+    petThresholds: bundle.petThresholds,
+    students: bundle.students.map(student => ({
+      ...student,
+      canChangeToday: !student.pet || student.pet.recruitedAt < dayStart,
+    })),
+    groups: bundle.groups,
   });
 });

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Button, Form, Input, Modal, Select, Table, Tag } from "antd";
+import { Button, Form, Input, Modal, Select, Switch, Table, Tag } from "antd";
 import { ArrowDown, ArrowUp, Edit3, Plus } from "lucide-react";
 import { StatusTag } from "@/components/StatusTag";
 import { LoadError } from "@/components/LoadError";
@@ -13,9 +13,16 @@ export default function SettingsPage() {
   const { message, notifyError } = useMessage();
   const [showDeleted, setShowDeleted] = useState(false);
   const modal = useEditModal<Reason>();
+  const [petSaving, setPetSaving] = useState(false);
   const [reasons = [], reload, loading, loadError] = useResource(
     async () => (await api<{ reasons: Reason[] }>("/api/admin/reasons")).reasons,
     [],
+  );
+  const [settings, reloadSettings] = useResource(
+    () => api<{ petEnabled: boolean }>("/api/admin/settings"),
+    [],
+    // The pet panel is super-admin only; silently skip it for regular teachers.
+    () => {},
   );
   async function save(values: Record<string, unknown>) {
     try {
@@ -57,14 +64,26 @@ export default function SettingsPage() {
       notifyError(err, "操作失败");
     }
   }
+  async function togglePet(enabled: boolean) {
+    setPetSaving(true);
+    try {
+      await api("/api/admin/settings", { method: "PATCH", body: JSON.stringify({ petEnabled: enabled }) });
+      message.success(enabled ? "宠物系统已启用" : "宠物系统已关闭");
+      reloadSettings();
+    } catch (err) {
+      notifyError(err, "操作失败");
+    } finally {
+      setPetSaving(false);
+    }
+  }
   const visible = reasons.filter(reason => showDeleted || reason.status !== 2);
   const topReasons = reasons.filter(reason => !reason.parentId && reason.status !== 2);
   return (
     <>
       <div className="page-heading">
         <div>
-          <h1>原因设置</h1>
-          <p>全局维护加分和扣分原因，配置对所有班级生效。</p>
+          <h1>系统设置</h1>
+          <p>维护全局加减分原因，并管理宠物系统的全局开关。</p>
         </div>
         <Button type="primary" icon={<Plus size={15} />} onClick={() => modal.openModal()}>
           新增原因
@@ -119,6 +138,18 @@ export default function SettingsPage() {
         )}
         <DeletedToggle checked={showDeleted} onChange={setShowDeleted} label="显示已删除原因" />
       </div>
+      {settings && (
+        <div className="section-panel">
+          <h3 style={{ margin: "0 0 6px" }}>宠物系统</h3>
+          <p className="muted" style={{ margin: "0 0 14px" }}>
+            控制教室端宠物模式的总开关。关闭后学生端不显示宠物入口，管理端仅保留数据查看；已分配的宠物不会丢失。
+          </p>
+          <div className="pet-settings-row">
+            <Switch checked={settings.petEnabled} loading={petSaving} onChange={togglePet} />
+            <span>{settings.petEnabled ? "已启用" : "已关闭"}</span>
+          </div>
+        </div>
+      )}
       <Modal
         title={modal.editing ? "编辑原因" : "新增原因"}
         open={modal.open}

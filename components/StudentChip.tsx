@@ -35,12 +35,14 @@ function useCountUp(target: number) {
 }
 
 export function StudentChip({
+  studentId,
   name,
   balance,
   selected,
   effect,
   onClick,
 }: {
+  studentId: string;
   name: string;
   balance: number;
   selected: boolean;
@@ -49,7 +51,12 @@ export function StudentChip({
 }) {
   const display = useCountUp(balance);
   return (
-    <button type="button" className={`student-chip ${selected ? "selected" : ""}`} onClick={onClick}>
+    <button
+      type="button"
+      data-tile-id={studentId}
+      className={`student-chip ${selected ? "selected" : ""}`}
+      onClick={onClick}
+    >
       {effect && (
         <span
           key={`delta-${effect.key}`}

@@ -25,6 +25,12 @@ export const PATCH = route<{ params: Promise<{ id: string }> }>(async (request, 
       if (status === 2) db.prepare("UPDATE clients SET status = 2 WHERE class_id = ?").run(id);
     });
     update();
+  } else if (body.action === "petConfig") {
+    const stage2 = Number(body.petStage2At);
+    const stage3 = Number(body.petStage3At);
+    if (!Number.isInteger(stage2) || !Number.isInteger(stage3) || stage2 < 1 || stage3 <= stage2)
+      return jsonError("门槛无效：需为正整数，且阶段 3 大于阶段 2");
+    db.prepare("UPDATE classes SET pet_stage2_at = ?, pet_stage3_at = ? WHERE id = ?").run(stage2, stage3, id);
   } else {
     if (body.action !== undefined) return jsonError("不支持的班级操作");
     const name = String(body.name || "").trim();

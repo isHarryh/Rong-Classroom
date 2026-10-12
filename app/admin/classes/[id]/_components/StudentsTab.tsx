@@ -1,10 +1,12 @@
 "use client";
 
-import { Button, Table } from "antd";
-import { Edit3, UserRound } from "lucide-react";
+import { App, Button, Table } from "antd";
+import { Edit3, PawPrint, UserRound } from "lucide-react";
 import { ManOutlined, WomanOutlined } from "@ant-design/icons";
+import { PetStageTag } from "@/components/PetStageTag";
 import { StatusTag } from "@/components/StatusTag";
 import { DeletedToggle, StatusActions } from "@/components/StatusActions";
+import { petSpeciesName } from "@/lib/pets";
 import type { Student } from "@/lib/types";
 import { ImportDialog } from "./ImportDialog";
 import type { Bundle } from "./record-helpers";
@@ -16,6 +18,9 @@ export function StudentsTab({
   setShowDeleted,
   onRefresh,
   onStudentStatus,
+  petEnabled,
+  onChangePet,
+  onRandomPets,
 }: {
   bundle: Bundle;
   studentModal: {
@@ -29,13 +34,33 @@ export function StudentsTab({
   setShowDeleted: (value: boolean) => void;
   onRefresh: () => void;
   onStudentStatus: (id: string, status: number) => void;
+  petEnabled: boolean;
+  onChangePet: (student: Student) => void;
+  onRandomPets: () => void;
 }) {
+  const { modal } = App.useApp();
+  const petlessCount = bundle.students.filter(student => student.status === 1 && !student.pet).length;
   return (
     <>
       <div className="data-toolbar">
         <ImportDialog classId={bundle.class.id} onImported={onRefresh} />
         <Button icon={<UserRound size={16} />} onClick={() => studentModal.openModal()}>
           手动添加学生
+        </Button>
+        <Button
+          icon={<PawPrint size={16} />}
+          disabled={!petEnabled || petlessCount === 0}
+          onClick={() =>
+            modal.confirm({
+              title: "随机分配宠物",
+              content: `将为 ${petlessCount} 名未选择宠物的学生洗牌均匀分配宠物，已有宠物不受影响。`,
+              okText: "开始分配",
+              cancelText: "取消",
+              onOk: onRandomPets,
+            })
+          }
+        >
+          随机分配宠物{petlessCount ? `（${petlessCount}）` : ""}
         </Button>
       </div>
       <Table
@@ -70,6 +95,17 @@ export function StudentsTab({
             render: value => <b className={value >= 0 ? "balance-positive" : "balance-negative"}>{value} 榕币</b>,
           },
           {
+            title: "宠物",
+            render: (_, item) =>
+              item.pet ? (
+                <span>
+                  {petSpeciesName(item.pet.species)} <PetStageTag stage={item.pet.stage} />
+                </span>
+              ) : (
+                <span className="muted">未选择</span>
+              ),
+          },
+          {
             title: "状态",
             dataIndex: "status",
             render: value => <StatusTag value={value} />,
@@ -79,6 +115,13 @@ export function StudentsTab({
             render: (_, item) => (
               <div className="inline-actions">
                 <Button type="text" icon={<Edit3 size={15} />} onClick={() => studentModal.openModal(item)} />
+                <Button
+                  type="text"
+                  icon={<PawPrint size={15} />}
+                  title="更换宠物"
+                  disabled={!petEnabled}
+                  onClick={() => onChangePet(item)}
+                />
                 <StatusActions
                   status={item.status}
                   onToggle={() => onStudentStatus(item.id, item.status === 1 ? 0 : 1)}
