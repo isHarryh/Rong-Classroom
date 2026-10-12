@@ -1,0 +1,147 @@
+{
+  "style": "chunky pixel-art style, hard pixel edges, no anti-aliasing, no glow, no text, no grid lines, no cell borders, no shadows, transparent background",
+  "species": {
+    "cat": {
+      "name": "猫咪",
+      "identity": "cute orange tabby cat",
+      "stages": [
+        "stage 1, a tiny round baby kitten with a big head and tiny body, plain with no accessories",
+        "stage 2, a young cat, taller and slightly slimmer, wearing a red collar with a golden bell",
+        "stage 3, a majestic adult cat, larger with a fluffy chest and a long raised striped tail, wearing the red collar with a golden bell and a small golden crown"
+      ]
+    },
+    "fox": {
+      "name": "狐狸",
+      "identity": "cute red fox with a white muzzle, white chest and a white-tipped bushy tail",
+      "stages": [
+        "stage 1, a tiny round baby fox cub with a big head and tiny body, plain with no accessories",
+        "stage 2, a young fox, taller and slightly slimmer with an upright bushy tail, wearing a green neck scarf",
+        "stage 3, a majestic adult fox, larger with a fluffy chest and a long raised bushy tail, wearing the green neck scarf and a small leaf crown"
+      ]
+    },
+    "rabbit": {
+      "name": "兔子",
+      "identity": "cute white rabbit with long ears, pink inner ears and a fluffy round tail",
+      "stages": [
+        "stage 1, a tiny round baby bunny with a big head and short ears, plain with no accessories",
+        "stage 2, a young rabbit with longer upright ears, wearing a small blue bow tie",
+        "stage 3, a majestic adult rabbit with very long ears and a fluffy chest, wearing the blue bow tie and a silver star-shaped brooch"
+      ]
+    },
+    "penguin": {
+      "name": "企鹅",
+      "identity": "cute chubby penguin with a white belly, black back and tiny orange beak and feet",
+      "stages": [
+        "stage 1, a tiny round baby penguin chick with a big head and fluffy grey down, plain with no accessories",
+        "stage 2, a young penguin, taller and smoother, wearing a pair of red earmuffs",
+        "stage 3, a majestic adult penguin, larger with a glossy black back, wearing the red earmuffs and a small golden medal around its neck"
+      ]
+    },
+    "panda": {
+      "name": "熊猫",
+      "identity": "cute chubby panda with black ears, black eye patches, a white face and belly",
+      "stages": [
+        "stage 1, a tiny round baby panda cub with a big head, plain with no accessories",
+        "stage 2, a young panda, taller and slightly slimmer, with a small green bamboo leaf tuft on top of its head",
+        "stage 3, a majestic adult panda, larger and fluffier, with three green bamboo leaves on top of its head"
+      ]
+    },
+    "corgi": {
+      "name": "柯基犬",
+      "identity": "cute corgi puppy with a golden and white coat, short stubby legs and big upright ears",
+      "stages": [
+        "stage 1, a tiny round corgi puppy with a big head and stubby legs, plain with no accessories",
+        "stage 2, a young corgi, taller with a longer body, wearing a red bandana around its neck",
+        "stage 3, a majestic adult corgi, larger and fluffier, wearing the red bandana and a golden bone-shaped pendant"
+      ]
+    },
+    "hamster": {
+      "name": "仓鼠",
+      "identity": "cute round golden hamster with tiny ears, a cream belly and a pink nose",
+      "stages": [
+        "stage 1, a tiny round baby hamster with a big head and tiny paws, plain with no accessories",
+        "stage 2, a young hamster, slightly taller, with a sunflower seed stuffed in one cheek",
+        "stage 3, a majestic adult hamster, larger and rounder, keeping the sunflower seed in its cheek and a small sunflower on top of its head"
+      ]
+    },
+    "parrot": {
+      "name": "鹦鹉",
+      "identity": "cute chubby parrot with a green body, red crest feathers and a yellow beak",
+      "stages": [
+        "stage 1, a tiny round baby parrot chick with fluffy grey down and a big head",
+        "stage 2, a young parrot with green feathers growing in and a single short red crest feather on its head",
+        "stage 3, a majestic adult parrot with a full red crest, a green body and long blue tail feathers"
+      ]
+    },
+    "hedgehog": {
+      "name": "刺猬",
+      "identity": "cute hedgehog with soft brown spikes, a cream face and belly, and tiny paws",
+      "stages": [
+        "stage 1, a tiny round baby hedgehog with short soft spikes and a big head",
+        "stage 2, a young hedgehog, slightly larger, with a red apple on its back",
+        "stage 3, a majestic adult hedgehog, larger with longer spikes, carrying the red apple and a small brown mushroom on its back"
+      ]
+    },
+    "deer": {
+      "name": "鹿",
+      "identity": "cute fawn-colored deer with a cream belly, a small pink nose and white spots on its back",
+      "stages": [
+        "stage 1, a tiny round baby deer with a big head, tiny legs and no antlers",
+        "stage 2, a young deer with small budding antlers",
+        "stage 3, a majestic adult deer with large branch-like antlers and a small blue flower tucked behind one ear"
+      ]
+    },
+    "lion": {
+      "name": "狮子",
+      "identity": "cute golden lion cub with a cream belly, a round face and a tufted tail",
+      "stages": [
+        "stage 1, a tiny round lion cub with a big head and tiny body, plain with no mane",
+        "stage 2, a young lion with a modest golden-brown mane starting to grow",
+        "stage 3, a majestic adult lion with a large fluffy mane and a small scarlet cape on its shoulders"
+      ]
+    },
+    "pig": {
+      "name": "小猪",
+      "identity": "cute chubby pink piglet with a curly tail, a round snout and pink cheeks",
+      "stages": [
+        "stage 1, a tiny round baby piglet with a big head and tiny legs, plain with no accessories",
+        "stage 2, a young pig, slightly taller, wearing a small pink flower crown",
+        "stage 3, a majestic adult pig, larger and rounder, wearing a fuller pink flower crown and a pink ribbon on its curly tail"
+      ]
+    },
+    "owl": {
+      "name": "猫头鹰",
+      "identity": "cute round brown owl with a cream belly, big round yellow eyes and tiny wings",
+      "stages": [
+        "stage 1, a tiny round baby owl with a big head and fluffy down, plain with no accessories",
+        "stage 2, a young owl, slightly taller, wearing small round eyeglasses",
+        "stage 3, a majestic adult owl, larger with defined feathers, wearing the round eyeglasses and a small graduation cap"
+      ]
+    },
+    "dragon": {
+      "name": "小龙",
+      "identity": "cute chubby baby dragon with mint-teal scales, a cream belly, tiny wings and small amber horns",
+      "stages": [
+        "stage 1, a tiny round baby dragon with a big head and tiny wings, plain with no accessories",
+        "stage 2, a young dragon with slightly larger wings and small amber horns",
+        "stage 3, a majestic adult dragon with large wings, long amber horns and a glowing golden pearl on its forehead"
+      ]
+    },
+    "unicorn": {
+      "name": "独角兽",
+      "identity": "cute chubby white unicorn with a golden horn, a pastel pink mane and a fluffy tail",
+      "stages": [
+        "stage 1, a tiny round baby unicorn foal with a big head and a tiny golden horn bud",
+        "stage 2, a young unicorn with a small golden horn and a short pink mane",
+        "stage 3, a majestic adult unicorn with a long golden horn, a flowing rainbow mane and a fluffy white tail"
+      ]
+    }
+  },
+  "sheets": {
+    "pets-a": ["cat", "fox", "rabbit"],
+    "pets-b": ["penguin", "panda", "corgi"],
+    "pets-c": ["hamster", "parrot", "hedgehog"],
+    "pets-d": ["deer", "lion", "pig"],
+    "pets-e": ["owl", "dragon", "unicorn"]
+  }
+}

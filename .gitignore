@@ -1,7 +1,10 @@
 node_modules/
 .next/
+__pycache__
 data/
 dist/
+tools/pets/out/
+tools/pets/processed/
 src-tauri/target/
 .env*
 !.env.example
