@@ -24,7 +24,7 @@ button, input, select, textarea { font: inherit; }
 .login-shell { min-height: 100vh; display: grid; grid-template-columns: minmax(320px, 0.9fr) minmax(420px, 1.1fr); background: #eef5f1; }
 .login-intro { position: relative; overflow: hidden; padding: clamp(36px, 7vw, 100px); display: flex; flex-direction: column; justify-content: space-between; color: white; background: #125448; }
 .login-intro::after { content: ''; position: absolute; width: 360px; height: 360px; right: -120px; bottom: -150px; border: 1px solid rgba(255,255,255,.22); border-radius: 50%; box-shadow: 0 0 0 34px rgba(255,255,255,.05), 0 0 0 70px rgba(255,255,255,.04); }
-.brand-mark { display: inline-flex; width: 46px; height: 46px; align-items: center; justify-content: center; border-radius: 12px; background: #d9a24a; color: #173f39; font-size: 25px; font-weight: 800; }
+.brand-logo { display: block; width: 54px; height: 54px; border-radius: 12px; }
 .login-brand h1 { margin: 28px 0 14px; color: white; font-size: clamp(32px, 4vw, 54px); line-height: 1.1; letter-spacing: 0; }
 .login-brand p { max-width: 400px; margin: 0; color: rgba(255,255,255,.76); font-size: 16px; line-height: 1.8; }
 .login-note { position: relative; z-index: 1; color: rgba(255,255,255,.62); }
@@ -40,7 +40,7 @@ button, input, select, textarea { font: inherit; }
 .admin-shell { min-height: 100vh; }
 .admin-header { position: fixed; z-index: 10; top: 0; left: 0; right: 0; height: 64px; display: flex; align-items: center; justify-content: space-between; padding: 0 24px; background: #fff; border-bottom: 1px solid var(--line); }
 .header-brand { display: flex; align-items: center; gap: 11px; font-weight: 700; font-size: 17px; }
-.header-brand .brand-mark { width: 32px; height: 32px; border-radius: 8px; font-size: 18px; }
+.header-brand .brand-logo { width: 32px; height: 32px; border-radius: 8px; }
 .header-actions { display: flex; align-items: center; gap: 13px; color: var(--muted); }
 .header-actions .user-role { padding: 2px 9px; border: 1px solid var(--line); border-radius: 999px; font-size: 12px; line-height: 18px; }
 .admin-sidebar { position: fixed; top: 64px; bottom: 0; left: 0; width: 224px; padding: 24px 14px; background: #f8fbf9; border-right: 1px solid var(--line); }

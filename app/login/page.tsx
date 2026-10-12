@@ -42,7 +42,8 @@ export default function LoginPage() {
     <main className="login-shell">
       <section className="login-intro">
         <div className="login-brand">
-          <span className="brand-mark">榕</span>
+          {/* eslint-disable-next-line @next/next/no-img-element -- static app icon served from /icon.svg */}
+          <img className="brand-logo" src="/icon.svg" alt="" width={46} height={46} />
           <h1>榕课堂</h1>
           <p>把每一次课堂表现，变成看得见的成长记录。为教师准备的班级积分工作台。</p>
         </div>
